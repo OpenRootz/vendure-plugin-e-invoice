@@ -11,6 +11,9 @@ importers:
       fflate:
         specifier: ^0.8.3
         version: 0.8.3
+      graphql-tag:
+        specifier: ^2.12.7
+        version: 2.12.7(graphql@16.15.0)
       pdfmake:
         specifier: ~0.3.14
         version: 0.3.14
@@ -30,9 +33,6 @@ importers:
       graphql:
         specifier: ^16.14.2
         version: 16.15.0
-      graphql-tag:
-        specifier: ^2.12.7
-        version: 2.12.7(graphql@16.15.0)
       pg:
         specifier: ^8.13.0
         version: 8.23.1

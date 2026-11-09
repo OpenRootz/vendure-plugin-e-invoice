@@ -9,7 +9,7 @@ export const initialData: InitialData = {
     { name: 'Reduced', percentage: 7 },
     { name: 'Zero', percentage: 0 },
   ],
-  shippingMethods: [{ name: 'DHL Paket', price: 490 }],
+  shippingMethods: [{ name: 'DHL Paket', price: 490, taxRate: 19 }],
   paymentMethods: [
     {
       name: 'Test Payment',

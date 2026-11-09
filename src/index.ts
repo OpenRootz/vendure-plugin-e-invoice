@@ -1,2 +1,11 @@
 export * from './e-invoice.plugin';
 export * from './options';
+export { eInvoicePermission } from './constants';
+export * from './core';
+export * from './entities';
+export * from './events';
+export * from './strategies';
+export { buildModel, BuildModelInput } from './mapping/build-model';
+export { OrderModelMapper } from './mapping/order-model.mapper';
+export { ChannelSettingsService } from './services/channel-settings.service';
+export { InvoiceService } from './services/invoice.service';

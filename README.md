@@ -17,7 +17,11 @@ pnpm db:up && pnpm dev    # dev server on http://localhost:3050 (superadmin / su
 pnpm validate [dir]       # KoSIT (XRechnung/EN 16931), Mustang (ZUGFeRD), veraPDF (PDF/A-3b)
 pnpm validate test/golden # validate the XML of all test scenarios
 UPDATE_GOLDEN=1 pnpm test # regenerate golden files after an intended output change
+pnpm validate test/__output__/e2e # validate the invoices generated from e2e orders
 ```
+
+The sql.js e2e tests cache their seeded database in `test/__data__/`. Delete that folder after changing
+entities, custom fields or test fixtures.
 
 ## License
 

@@ -1,10 +1,48 @@
-import { OrderState } from '@vendure/core';
+import { Order, OrderLine, OrderState, Payment, RequestContext } from '@vendure/core';
+
+import { Buyer, EInvoiceModel, IsoDate, PaymentMeans, Seller, VatCategory } from './core';
+import { DefaultBuyerDataStrategy } from './strategies/buyer-data-strategy';
+import { DefaultInvoiceFormatStrategy } from './strategies/format-strategy';
+import { BuyerDataStrategy, InvoiceFormatStrategy, InvoiceNumberStrategy, InvoiceStorageStrategy, SellerDataStrategy } from './strategies/types';
+import { DefaultInvoiceNumberStrategy } from './strategies/number-strategy';
+import { ChannelSettingsSellerStrategy } from './strategies/seller-data-strategy';
+import { DatabaseInvoiceStorageStrategy } from './strategies/storage-strategy';
+
+/**
+ * Small hooks to adjust single mapping decisions without replacing a whole strategy.
+ * Every hook is optional; returning `undefined` falls back to the default.
+ */
+export interface EInvoiceMappingHooks {
+  /** BT-72. Default: the issue date. */
+  deliveryDate?: (ctx: RequestContext, order: Order) => IsoDate | undefined | Promise<IsoDate | undefined>;
+  /**
+   * VAT category of an order line, shipping line or surcharge. Default: the `eInvoice*` custom fields of the
+   * applicable TaxRate; rate > 0 without a category → `S`.
+   */
+  taxCategory?: (
+    ctx: RequestContext,
+    input: { order: Order; line?: OrderLine; rate: number; defaultCategory?: VatCategory; buyer: Buyer },
+  ) => VatCategory | undefined;
+  /**
+   * Payment means (BG-16) for a settled or authorized payment. Default: the `eInvoicePaymentMeansCode`
+   * custom field of the payment method, else `ZZZ` with the method name.
+   */
+  paymentMeans?: (ctx: RequestContext, input: { order: Order; payment: Payment; seller: Seller }) => PaymentMeans | undefined;
+  /** BT-130 unit code (UN/ECE Rec. 20). Default: `H87` (piece). */
+  unitCode?: (ctx: RequestContext, line: OrderLine) => string | undefined;
+  /** Language of the invoice. Default: the channel default language. */
+  language?: (ctx: RequestContext, order: Order) => string | undefined;
+  /** Price display in the PDF. Default: net for business buyers, gross otherwise. */
+  priceDisplay?: (ctx: RequestContext, order: Order, buyer: Buyer) => 'gross' | 'net' | undefined;
+  /** Last-mile escape hatch: change anything in the model before the checks run. */
+  transformModel?: (ctx: RequestContext, model: EInvoiceModel, order: Order) => EInvoiceModel | Promise<EInvoiceModel>;
+}
 
 /**
  * Options for {@link EInvoicePlugin.init}.
  */
 export interface EInvoicePluginOptions {
-  /** Secret for signing download links (HMAC-SHA256). Required. */
+  /** Secret for signing download links (HMAC-SHA256). Required, at least 32 characters. */
   secret: string;
   /** Order states that trigger automatic invoice creation. Default: `['PaymentSettled']`. */
   issueOnStates?: OrderState[];
@@ -16,6 +54,21 @@ export interface EInvoicePluginOptions {
    * - `'en16931'`: tax computed on the sum per rate (EN 16931), any difference goes into the rounding amount (BT-114).
    */
   taxCalculation?: 'vendure' | 'en16931';
+  /**
+   * In `'vendure'` mode: if Vendure's tax for a rate differs from the EN 16931 calculation by at least this
+   * many minor units, the invoice falls back to `'en16931'`. Default: `50` (0.50 with two decimals).
+   */
+  roundingFallbackThreshold?: number;
+  /** IANA time zone used for issue and due dates. Default: the time zone of the server process. */
+  timeZone?: string;
+  /** Make the buyer custom fields (VAT ID, buyer reference, Leitweg-ID, PO number) readable and writable in the Shop API. Default: `true`. */
+  exposeBuyerFieldsInShop?: boolean;
+  numberStrategy?: InvoiceNumberStrategy;
+  sellerStrategy?: SellerDataStrategy;
+  buyerStrategy?: BuyerDataStrategy;
+  formatStrategy?: InvoiceFormatStrategy;
+  storage?: InvoiceStorageStrategy;
+  mapping?: EInvoiceMappingHooks;
 }
 
 export type ResolvedEInvoicePluginOptions = Required<EInvoicePluginOptions>;
@@ -28,6 +81,19 @@ export function resolveOptions(options: EInvoicePluginOptions): ResolvedEInvoice
     issueOnStates: ['PaymentSettled'],
     autoCreditNotes: true,
     taxCalculation: 'vendure',
-    ...options,
+    roundingFallbackThreshold: 50,
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    exposeBuyerFieldsInShop: true,
+    numberStrategy: new DefaultInvoiceNumberStrategy(),
+    sellerStrategy: new ChannelSettingsSellerStrategy(),
+    buyerStrategy: new DefaultBuyerDataStrategy(),
+    formatStrategy: new DefaultInvoiceFormatStrategy(),
+    storage: new DatabaseInvoiceStorageStrategy(),
+    mapping: {},
+    ...stripUndefined(options),
   };
+}
+
+function stripUndefined<T extends object>(o: T): T {
+  return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as T;
 }
