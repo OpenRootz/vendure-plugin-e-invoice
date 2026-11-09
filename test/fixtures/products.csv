@@ -1,0 +1,5 @@
+name,slug,description,assets,facets,optionGroups,optionValues,sku,price,taxCategory,stockOnHand,trackInventory,variantAssets,variantFacets
+Bio-Kaffee 500g,bio-kaffee-500g,Ganze Bohne,,,,,KAF-500,10.00,Standard,100,false,,
+Notizbuch A5,notizbuch-a5,Dotted,,,,,NB-A5,3.35,Standard,100,false,,
+Fachbuch E-Rechnung,fachbuch-e-rechnung,Gebundene Ausgabe,,,,,BOOK-1,18.69,Reduced,100,false,,
+Gutschein-Karte,gutschein-karte,Ohne Steuer,,,,,GIFT-1,25.00,Zero,100,false,,

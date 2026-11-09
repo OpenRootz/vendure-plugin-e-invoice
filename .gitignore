@@ -1,0 +1,20 @@
+node_modules/
+dist/
+coverage/
+*.log
+.env
+.env.*
+!.env.example
+
+# test / validation output
+test/__data__/
+test/__output__/
+.validate-tools/
+test/validate/**/reports/
+
+# IDE
+.idea/
+.vscode/
+
+# Vendure local telemetry id
+.vendure/

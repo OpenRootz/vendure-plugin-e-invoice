@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Build & test (Node ${{ matrix.node }}, ${{ matrix.db }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+        db: [sqljs]
+        include:
+          - node: 24
+            db: postgres
+    services:
+      postgres:
+        image: ${{ matrix.db == 'postgres' && 'postgres:17-alpine' || '' }}
+        env:
+          POSTGRES_USER: vendure
+          POSTGRES_PASSWORD: vendure
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_DB: ${{ matrix.db }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm build
+      - run: pnpm test
+
+  validate:
+    name: Validate e-invoices (KoSIT, Mustang, veraPDF)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: .validate-tools
+          key: validate-tools-${{ hashFiles('test/validate/versions.env') }}
+      - run: bash test/validate/validate.sh test/validate/samples
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-reports
+          path: test/validate/samples/reports
