@@ -96,6 +96,8 @@ export interface AllowanceCharge {
   vat?: VatCategory;
   /** Tax as computed by Vendure for this amount (used by `taxCalculation: 'vendure'`) */
   vendureTaxAmount?: Money;
+  /** Technical rounding adjustment (gross-price channels); not serialized, hidden in gross price display */
+  rounding?: boolean;
 }
 
 export interface InvoiceLine {

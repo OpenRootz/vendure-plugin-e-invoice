@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { calculate, EInvoiceModel } from '../../../src/core';
 import { line, model, VAT_19, VAT_7 } from '../../fixtures/model-builders';
 
-/** B2B net channel: line allowance, shipping as document charge (same numbers as the validated spike). */
+/** B2B net channel: line allowance, shipping as document charge (numbers validated with KoSIT and Mustang). */
 function b2b(): EInvoiceModel {
   return model({
     lines: [
@@ -32,7 +32,7 @@ function rounding(taxCalculation: 'vendure' | 'en16931'): EInvoiceModel {
 }
 
 describe('calculate', () => {
-  it('computes the B2B spike totals', () => {
+  it('computes the B2B reference totals', () => {
     const t = calculate(b2b(), { expectedTotalWithTax: 3320 });
     expect(t).toMatchObject({
       lineTotal: 2300,

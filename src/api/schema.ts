@@ -55,12 +55,30 @@ export const adminApiExtensions = gql`
     voidReason: String
   }
 
+  type EInvoiceLayout {
+    logoAssetId: ID
+    accentColor: String
+    introText: String
+    closingText: String
+    footerText: String
+  }
+
+  input EInvoiceLayoutInput {
+    "PNG, JPEG or SVG asset shown at the top right of the PDF"
+    logoAssetId: ID
+    "Hex color, e.g. #1a5fb4"
+    accentColor: String
+    introText: String
+    closingText: String
+    footerText: String
+  }
+
   type EInvoiceChannelSettings {
     enabled: Boolean!
     autoIssue: Boolean!
     seller: JSON!
     payment: JSON!
-    layout: JSON!
+    layout: EInvoiceLayout!
   }
 
   input UpdateEInvoiceChannelSettingsInput {
@@ -68,7 +86,7 @@ export const adminApiExtensions = gql`
     autoIssue: Boolean
     seller: JSON
     payment: JSON
-    layout: JSON
+    layout: EInvoiceLayoutInput
   }
 
   extend type Order {

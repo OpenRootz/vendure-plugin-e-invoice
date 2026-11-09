@@ -140,8 +140,8 @@ function mapLine(input: BuildModelInput, line: OrderLine, index: number, labels:
 
   // Gross-price channels: the net unit price is rounded, so quantity × unit price can differ from the line price
   const rounding = netUnitPrice * quantity - line.linePrice;
-  if (rounding > 0) allowances.push({ amount: rounding, reason: labels.rounding });
-  else if (rounding < 0) charges.push({ amount: -rounding, reason: labels.rounding });
+  if (rounding > 0) allowances.push({ amount: rounding, reason: labels.rounding, rounding: true });
+  else if (rounding < 0) charges.push({ amount: -rounding, reason: labels.rounding, rounding: true });
 
   return {
     id: String(index + 1),

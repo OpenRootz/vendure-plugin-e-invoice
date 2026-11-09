@@ -1,9 +1,11 @@
 import { createTestEnvironment } from '@vendure/testing';
 import gql from 'graphql-tag';
+import path from 'path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { initialData } from '../fixtures/initial-data';
 import { createConfig, fixtures } from '../helpers';
+import { extractFacturX } from '../pdf-utils';
 
 import {
   CREATE_INVOICE,
@@ -73,12 +75,12 @@ describe('Issuing invoices', () => {
     // 2 × 10.00 + 18.69 net, shipping 4.90 net (19 %)
     expect(invoice.totalNet).toBe(2000 + 1869 + 490);
     expect(invoice.files).toHaveLength(1);
-    expect(invoice.files[0]).toMatchObject({ format: 'ZUGFERD', mimeType: 'application/xml' });
+    expect(invoice.files[0]).toMatchObject({ format: 'ZUGFERD', mimeType: 'application/pdf', fileName: `${no(1)}.pdf` });
     expect(invoice.files[0].sha256).toMatch(/^[0-9a-f]{64}$/);
 
     const files = await readFiles(server, no(1));
-    const xml = files.zugferd;
-    writeOutput('auto-b2b.zugferd.xml', xml);
+    writeOutput('auto-b2b.pdf', files.zugferd);
+    const xml = extractFacturX(files.zugferd);
     expect(xml).toContain(`<ram:ID>${no(1)}</ram:ID>`);
     expect(xml).toContain('<ram:Name>Beispiel Kunde AG</ram:Name>');
     expect(xml).toContain('<ram:ID schemeID="VA">DE987654321</ram:ID>');
@@ -144,12 +146,38 @@ describe('Issuing invoices', () => {
     });
     const [invoice] = await waitForInvoices(adminClient, order.id, issued);
     expect(invoice.formats).toEqual(['ZUGFERD', 'XRECHNUNG_CII']);
-    expect(invoice.files.map((f) => f.fileName)).toEqual([`${no(4)}-zugferd.xml`, `${no(4)}-xrechnung.xml`]);
+    expect(invoice.files.map((f) => f.fileName)).toEqual([`${no(4)}.pdf`, `${no(4)}-xrechnung.xml`]);
 
     const files = await readFiles(server, no(4));
+    writeOutput('leitweg.pdf', files.zugferd);
     writeOutput('leitweg.xrechnung-cii.xml', files['xrechnung-cii']);
-    expect(files['xrechnung-cii']).toContain('<ram:BuyerReference>04011000-1234512345-06</ram:BuyerReference>');
-    expect(files['xrechnung-cii']).toContain('<ram:URIID schemeID="0204">04011000-1234512345-06</ram:URIID>');
+    const xrechnung = files['xrechnung-cii'].toString('utf8');
+    expect(xrechnung).toContain('<ram:BuyerReference>04011000-1234512345-06</ram:BuyerReference>');
+    expect(xrechnung).toContain('<ram:URIID schemeID="0204">04011000-1234512345-06</ram:URIID>');
+  });
+
+  it('renders the logo and layout texts from the channel settings', async () => {
+    const { createAssets } = await adminClient.fileUploadMutation({
+      mutation: gql`
+        mutation CreateAssets($input: [CreateAssetInput!]!) {
+          createAssets(input: $input) {
+            ... on Asset {
+              id
+            }
+          }
+        }
+      `,
+      filePaths: [path.join(__dirname, '../fixtures/logo.png')],
+      mapVariables: () => ({ input: [{ file: null }] }),
+    });
+    await adminClient.query(UPDATE_SETTINGS, {
+      input: { layout: { logoAssetId: createAssets[0].id, accentColor: '#1a5fb4', introText: 'Vielen Dank für Ihre Bestellung!' } },
+    });
+    const order = await placeOrder(shopClient, { items: [{ sku: 'BOOK-1', quantity: 1 }] });
+    const [invoice] = await waitForInvoices(adminClient, order.id, issued);
+    const pdf = (await readFiles(server, invoice.number as string)).zugferd;
+    writeOutput('logo.pdf', pdf);
+    expect(pdf.toString('latin1')).toContain('/Subtype /Image');
   });
 
   it('numbers concurrently created invoices without gaps or duplicates', async () => {
@@ -162,7 +190,7 @@ describe('Issuing invoices', () => {
       orders.map((o) => adminClient.query(CREATE_INVOICE, { orderId: o.id }).then((r) => r.createEInvoice as InvoiceResult)),
     );
     const numbers = results.map((r) => r.number).sort();
-    expect(numbers).toEqual(Array.from({ length: 10 }, (_, i) => no(5 + i)));
+    expect(numbers).toEqual(Array.from({ length: 10 }, (_, i) => no(6 + i)));
     for (const o of orders) await waitForInvoices(adminClient, o.id, issued);
   });
 });

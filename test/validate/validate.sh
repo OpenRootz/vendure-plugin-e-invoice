@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Validate generated e-invoices with the official tools (Docker required).
-#   pnpm validate [dir]   (default: test/validate/samples)
+#   pnpm validate [dir]   (default: test/golden)
 # *.xml → KoSIT (XRechnung 3.0.x / EN 16931 scenarios)
 # *.pdf → Mustang (ZUGFeRD/Factur-X: PDF/A + XML + XMP) and veraPDF (PDF/A-3b)
 # Reports are written to test/__output__/validate/<dir name>/ (git-ignored); the input dir stays untouched.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-DIR="$(cd "${1:-$ROOT/test/validate/samples}" && pwd)"
+DIR="$(cd "${1:-$ROOT/test/golden}" && pwd)"
 TOOLS="${VALIDATE_TOOLS_DIR:-$ROOT/.validate-tools}"
 REPORTS="$ROOT/test/__output__/validate/$(basename "$DIR")"
 # shellcheck source=versions.env

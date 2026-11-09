@@ -184,7 +184,7 @@ describe('buildModel', () => {
       netUnitPrice: 335,
       netAmount: 1006,
       allowances: [],
-      charges: [{ amount: 1, reason: 'Rundungsdifferenz' }],
+      charges: [{ amount: 1, reason: 'Rundungsdifferenz', rounding: true }],
       display: { grossUnitPrice: 399, grossAmount: 1197 },
     });
     expect(m.totals?.grandTotal).toBe(1197 + 499);

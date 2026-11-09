@@ -17,6 +17,7 @@ pnpm db:up && pnpm dev    # dev server on http://localhost:3050 (superadmin / su
 pnpm validate [dir]       # KoSIT (XRechnung/EN 16931), Mustang (ZUGFeRD), veraPDF (PDF/A-3b)
 pnpm validate test/golden # validate the XML of all test scenarios
 UPDATE_GOLDEN=1 pnpm test # regenerate golden files after an intended output change
+pnpm validate test/__output__/pdf # validate the ZUGFeRD PDFs of all scenarios (written by pnpm test)
 pnpm validate test/__output__/e2e # validate the invoices generated from e2e orders
 ```
 

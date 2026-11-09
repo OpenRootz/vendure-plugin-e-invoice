@@ -296,19 +296,19 @@ export async function waitForInvoices(
 }
 
 /** Reads the stored files of an invoice directly from the database (download API follows in a later milestone). */
-export async function readFiles(server: TestServer, invoiceNumber: string): Promise<Record<string, string>> {
+export async function readFiles(server: TestServer, invoiceNumber: string): Promise<Record<string, Buffer>> {
   const connection = server.app.get(TransactionalConnection).rawConnection;
   const invoice = await connection.getRepository(EInvoice).findOneOrFail({ where: { number: invoiceNumber }, relations: ['files'] });
-  const out: Record<string, string> = {};
+  const out: Record<string, Buffer> = {};
   for (const file of invoice.files) {
     const blob = await connection.getRepository(EInvoiceBlob).findOneOrFail({ where: { id: file.storageId } });
-    out[file.format] = Buffer.from(blob.data).toString('utf8');
+    out[file.format] = Buffer.from(blob.data);
   }
   return out;
 }
 
 /** Writes generated files to `test/__output__/e2e/` so they can be checked with `pnpm validate test/__output__/e2e`. */
-export function writeOutput(name: string, content: string) {
+export function writeOutput(name: string, content: string | Buffer) {
   const dir = path.join(__dirname, '../__output__/e2e');
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, name), content);

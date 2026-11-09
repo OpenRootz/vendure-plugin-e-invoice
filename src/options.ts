@@ -1,10 +1,18 @@
 import { Order, OrderLine, OrderState, Payment, RequestContext } from '@vendure/core';
 
-import { Buyer, EInvoiceModel, IsoDate, PaymentMeans, Seller, VatCategory } from './core';
+import { Buyer, EInvoiceModel, IsoDate, PaymentMeans, PdfFonts, PdfLabels, Seller, VatCategory } from './core';
 import { DefaultBuyerDataStrategy } from './strategies/buyer-data-strategy';
 import { DefaultInvoiceFormatStrategy } from './strategies/format-strategy';
-import { BuyerDataStrategy, InvoiceFormatStrategy, InvoiceNumberStrategy, InvoiceStorageStrategy, SellerDataStrategy } from './strategies/types';
+import {
+  BuyerDataStrategy,
+  InvoiceFormatStrategy,
+  InvoiceNumberStrategy,
+  InvoicePdfStrategy,
+  InvoiceStorageStrategy,
+  SellerDataStrategy,
+} from './strategies/types';
 import { DefaultInvoiceNumberStrategy } from './strategies/number-strategy';
+import { DefaultTemplatePdfStrategy } from './strategies/pdf-strategy';
 import { ChannelSettingsSellerStrategy } from './strategies/seller-data-strategy';
 import { DatabaseInvoiceStorageStrategy } from './strategies/storage-strategy';
 
@@ -68,6 +76,14 @@ export interface EInvoicePluginOptions {
   buyerStrategy?: BuyerDataStrategy;
   formatStrategy?: InvoiceFormatStrategy;
   storage?: InvoiceStorageStrategy;
+  /** Layout of the ZUGFeRD PDF. Default: the built-in template. */
+  pdfStrategy?: InvoicePdfStrategy;
+  pdf?: {
+    /** TTF fonts by family name; the first family is the default. Default: Roboto (Latin, Greek, Cyrillic). */
+    fonts?: PdfFonts;
+    /** Override labels of the default template per language, e.g. `{ de: { invoice: 'Faktura' } }`. */
+    translations?: Record<string, Partial<PdfLabels>>;
+  };
   mapping?: EInvoiceMappingHooks;
 }
 
@@ -89,6 +105,8 @@ export function resolveOptions(options: EInvoicePluginOptions): ResolvedEInvoice
     buyerStrategy: new DefaultBuyerDataStrategy(),
     formatStrategy: new DefaultInvoiceFormatStrategy(),
     storage: new DatabaseInvoiceStorageStrategy(),
+    pdfStrategy: new DefaultTemplatePdfStrategy(),
+    pdf: {},
     mapping: {},
     ...stripUndefined(options),
   };

@@ -1,6 +1,6 @@
 import { ID, InjectableStrategy, Order, RequestContext } from '@vendure/core';
 
-import { Address, Buyer, EInvoiceFormat, EInvoiceType, IsoDate, Seller } from '../core';
+import { Address, Buyer, EInvoiceFormat, EInvoiceType, IsoDate, PdfDocDefinition, PdfTemplateInput, Seller } from '../core';
 
 export interface NumberInput {
   type: EInvoiceType;
@@ -78,4 +78,13 @@ export interface InvoiceStorageStrategy extends InjectableStrategy {
   /** Store the file and return an opaque storage ID. */
   save(ctx: RequestContext, file: StoredFileInput): Promise<string>;
   read(ctx: RequestContext, storageId: string): Promise<Buffer>;
+}
+
+/**
+ * Builds the layout of the ZUGFeRD PDF as a pdfmake document definition.
+ * Return layout only: PDF/A-3b, the embedded XML, metadata and fonts are enforced by the plugin,
+ * so a custom template cannot produce a non-compliant e-invoice. Images must be data URLs.
+ */
+export interface InvoicePdfStrategy extends InjectableStrategy {
+  buildDocDefinition(ctx: RequestContext, input: PdfTemplateInput): PdfDocDefinition | Promise<PdfDocDefinition>;
 }

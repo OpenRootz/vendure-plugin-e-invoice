@@ -74,6 +74,6 @@ export class EInvoicePlugin implements OnApplicationBootstrap, OnApplicationShut
 
   private strategies() {
     const o = EInvoicePlugin.options;
-    return [o.numberStrategy, o.sellerStrategy, o.buyerStrategy, o.formatStrategy, o.storage];
+    return [o.numberStrategy, o.sellerStrategy, o.buyerStrategy, o.formatStrategy, o.storage, o.pdfStrategy];
   }
 }
