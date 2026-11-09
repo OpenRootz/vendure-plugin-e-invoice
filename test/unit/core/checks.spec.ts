@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { calculate, checkModel, EInvoiceModel, IssueCode } from '../../../src/core';
-import { line, model, VAT_19 } from './builders';
+import { line, model, VAT_19 } from '../../fixtures/model-builders';
 
 function codes(m: EInvoiceModel, formats: Parameters<typeof checkModel>[1] = ['zugferd'], expected?: number) {
   m.totals = calculate(m, { expectedTotalWithTax: expected });
@@ -57,12 +57,13 @@ describe('checkModel', () => {
 
   it('checks intra-community supplies (K)', () => {
     const k = { code: 'K' as const, rate: '0', exemptionReasonCode: 'VATEX-EU-IC' };
-    const m = model({ lines: [line(1000, '1', k)] });
-    expect(codes(m)).toEqual(['BUYER_VAT_ID_REQUIRED', 'INTRA_COMMUNITY_SAME_COUNTRY']);
+    const m = model({ lines: [line(1000, '1', k)], deliveryDate: undefined });
+    expect(codes(m)).toEqual(['BUYER_VAT_ID_REQUIRED', 'DELIVERY_INFO_REQUIRED', 'INTRA_COMMUNITY_SAME_COUNTRY']);
 
     const ok = model({ lines: [line(1000, '1', k)] });
     ok.buyer.vatId = 'ATU12345678';
     ok.buyer.address.countryCode = 'AT';
+    ok.delivery = { address: { ...ok.buyer.address } };
     expect(codes(ok)).toEqual([]);
   });
 

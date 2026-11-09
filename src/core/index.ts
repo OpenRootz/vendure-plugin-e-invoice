@@ -4,3 +4,4 @@ export * from './model';
 export * from './money';
 export * from './calculate';
 export * from './checks';
+export * from './xml';

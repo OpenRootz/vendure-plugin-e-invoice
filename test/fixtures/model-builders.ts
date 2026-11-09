@@ -1,4 +1,4 @@
-import { EInvoiceModel, InvoiceLine, VatCategory } from '../../../src/core';
+import { EInvoiceModel, InvoiceLine, VatCategory } from '../../src/core';
 
 export const VAT_19: VatCategory = { code: 'S', rate: '19' };
 export const VAT_7: VatCategory = { code: 'S', rate: '7' };
@@ -32,7 +32,7 @@ export function model(overrides: Partial<EInvoiceModel> = {}): EInvoiceModel {
     amountDecimals: 2,
     language: 'de',
     buyerReference: 'ABC123',
-    orderReference: 'ABC123',
+    salesOrderReference: 'ABC123',
     precedingInvoices: [],
     deliveryDate: '2026-11-08',
     notes: [],

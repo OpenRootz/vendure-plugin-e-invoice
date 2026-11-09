@@ -23,12 +23,14 @@ export type IssueCode =
   | 'EXEMPTION_REASON_CONFLICT'
   | 'BUYER_VAT_ID_REQUIRED'
   | 'INTRA_COMMUNITY_SAME_COUNTRY'
+  | 'DELIVERY_INFO_REQUIRED'
   | 'LINE_AMOUNT_MISMATCH'
   | 'NEGATIVE_AMOUNT'
   | 'TOTAL_MISMATCH'
   | 'OVERPAID'
   | 'PAYMENT_TERMS_REQUIRED'
   | 'PAYMENT_ACCOUNT_MISSING'
+  | 'PAYMENT_MEANS_MISSING'
   | 'CREDIT_NOTE_REFERENCE_MISSING'
   | 'TOTALS_MISSING';
 
@@ -98,6 +100,8 @@ export function checkModel(model: EInvoiceModel, formats: EInvoiceFormat[]): Inv
     isBlank(buyer.name) && 'name',
     isBlank(buyer.address.city) && 'city',
     isBlank(buyer.address.countryCode) && 'country',
+    // XRechnung additionally requires the postal code (BR-DE-9)
+    xrechnung && isBlank(buyer.address.postalCode) && 'postal code',
   ].filter(Boolean);
   if (missingBuyer.length) {
     add('BUYER_INCOMPLETE', `Buyer data is incomplete: ${missingBuyer.join(', ')}`, 'buyer');
@@ -142,6 +146,11 @@ export function checkModel(model: EInvoiceModel, formats: EInvoiceFormat[]): Inv
     add('BUYER_VAT_ID_REQUIRED', 'Reverse charge (AE) and intra-community supplies (K) require the buyer VAT ID', 'buyer.vatId');
   }
   if (usedCodes.has('K')) {
+    // BR-IC-11 / BR-IC-12: delivery date and deliver-to country are mandatory
+    const missing = [!model.deliveryDate && 'delivery date', !model.delivery && 'delivery address'].filter(Boolean);
+    if (missing.length) {
+      add('DELIVERY_INFO_REQUIRED', `Intra-community supply (K) requires ${missing.join(' and ')}`, 'delivery');
+    }
     const deliveryCountry = model.delivery?.address.countryCode ?? buyer.address.countryCode;
     if (deliveryCountry === seller.address.countryCode) {
       add('INTRA_COMMUNITY_SAME_COUNTRY', 'Intra-community supply (K) requires delivery to another EU country', 'delivery');
@@ -171,6 +180,9 @@ export function checkModel(model: EInvoiceModel, formats: EInvoiceFormat[]): Inv
   }
   if (totals.duePayable > 0 && isBlank(model.payment.terms) && isBlank(model.payment.dueDate)) {
     add('PAYMENT_TERMS_REQUIRED', 'An amount is due, so payment terms or a due date are required (BR-CO-25)', 'payment');
+  }
+  if (xrechnung && model.payment.means.length === 0) {
+    add('PAYMENT_MEANS_MISSING', 'XRechnung requires payment instructions (BG-16, BR-DE-1)', 'payment.means');
   }
   model.payment.means.forEach((means, i) => {
     if (means.code === '58' && !('iban' in means && !isBlank(means.iban))) {

@@ -191,8 +191,10 @@ export interface EInvoiceModel {
   language: string;
   /** BT-10 */
   buyerReference: string;
-  /** BT-13 */
+  /** BT-13 purchase order reference of the buyer (e.g. their PO number) */
   orderReference?: string;
+  /** BT-14 sales order reference of the seller (the Vendure order code) */
+  salesOrderReference?: string;
   /** BG-3 (credit notes: the corrected invoice) */
   precedingInvoices: { number: string; issueDate: IsoDate }[];
   /** BT-72 */
@@ -217,6 +219,8 @@ export interface EInvoiceModel {
     dueDate?: IsoDate;
     /** BT-113 */
     prepaidAmount: Money;
+    /** BT-83 remittance information (e.g. the invoice number) */
+    reference?: string;
   };
   /** Requested tax calculation; see {@link Totals.taxCalculation} for the applied one */
   taxCalculation: TaxCalculation;

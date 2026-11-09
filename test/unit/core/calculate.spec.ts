@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { calculate, EInvoiceModel } from '../../../src/core';
-import { line, model, VAT_19, VAT_7 } from './builders';
+import { line, model, VAT_19, VAT_7 } from '../../fixtures/model-builders';
 
 /** B2B net channel: line allowance, shipping as document charge (same numbers as the validated spike). */
 function b2b(): EInvoiceModel {

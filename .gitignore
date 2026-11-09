@@ -10,7 +10,6 @@ coverage/
 test/__data__/
 test/__output__/
 .validate-tools/
-test/validate/**/reports/
 
 # IDE
 .idea/

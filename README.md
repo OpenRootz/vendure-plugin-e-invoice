@@ -15,6 +15,8 @@ pnpm test                 # unit + e2e (sql.js)
 TEST_DB=postgres pnpm test  # e2e against Postgres (pnpm db:up first)
 pnpm db:up && pnpm dev    # dev server on http://localhost:3050 (superadmin / superadmin)
 pnpm validate [dir]       # KoSIT (XRechnung/EN 16931), Mustang (ZUGFeRD), veraPDF (PDF/A-3b)
+pnpm validate test/golden # validate the XML of all test scenarios
+UPDATE_GOLDEN=1 pnpm test # regenerate golden files after an intended output change
 ```
 
 ## License
