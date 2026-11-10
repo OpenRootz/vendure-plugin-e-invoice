@@ -128,7 +128,7 @@ export class LayoutPreviewService {
         pageCount: rendered.pageCount,
         issues: [...issues, ...rendered.issues],
         blocks: rendered.layout?.measurement.boxes ?? [],
-        layoutIssues: dedupe([...saveIssues.filter((i) => i.level === 'error'), ...current, ...(rendered.layout?.issues ?? [])]),
+        layoutIssues: dedupe([...saveIssues.filter((i) => i.level === 'error' || i.code === 'FONT_REDUCED'), ...current, ...(rendered.layout?.issues ?? [])]),
       };
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
@@ -156,14 +156,20 @@ export class LayoutPreviewService {
     return layout;
   }
 
-  /** The layout checks with the worst-case sample, measured without fitting (so clipping is reported). */
+  /**
+   * The layout checks with the worst-case sample. Measured like at render time: a fixed block whose content does
+   * not fit gets a smaller font (down to 6 pt, reported as FONT_REDUCED); only what still does not fit is an error.
+   */
   private async checkLayout(ctx: RequestContext, layout: LayoutSettings, seller: SellerSettings, payment: PaymentSettings, language?: string | null): Promise<LayoutIssue[]> {
     const data = await this.sampleSeller(ctx, seller, payment, []);
     const model = this.sample(ctx, 'worst-case', data, language);
     const input = await this.renderer.templateInput(ctx, model, layout);
     const fonts = this.options.pdf.fonts ?? defaultFonts();
-    const result = await layoutDocument(layout, input, fonts, { fit: false });
-    return checkLayout(layout, result.measurement, undefined, { fonts: Object.keys(fonts) });
+    const result = await layoutDocument(layout, input, fonts, { fit: true });
+    const reduced = result.issues
+      .filter((i) => i.code === 'FONT_REDUCED')
+      .map((i) => ({ ...i, message: `${i.message} (longest sample invoice)` }));
+    return [...checkLayout(layout, result.measurement, undefined, { fonts: Object.keys(fonts) }), ...reduced];
   }
 
   private sample(ctx: RequestContext, kind: SampleKind, seller: SellerData, language?: string | null): EInvoiceModel {

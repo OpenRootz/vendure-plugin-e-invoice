@@ -137,6 +137,12 @@ export async function layoutDocument(layout: PdfLayoutV2, input: LayoutRenderInp
       });
     }
   }
+  for (const [key, scale] of Object.entries(options.fontScale ?? {})) {
+    const block = layout.blocks.find((b) => b.key === key);
+    if (!block || measurement!.boxes.some((b) => b.key === key && b.overflowBy)) continue;
+    const size = Math.round((block.style?.fontSize ?? layout.theme.fontSize) * scale * 10) / 10;
+    issues.push({ level: 'warning', code: 'FONT_REDUCED', message: `The font of block ${key} is reduced to ${size} pt so that the content fits`, blockKey: key });
+  }
   return { definition: final.definition, plan: final.plan, measurement: measurement!, issues, options };
 }
 

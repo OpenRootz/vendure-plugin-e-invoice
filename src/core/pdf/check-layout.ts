@@ -76,7 +76,8 @@ export interface CheckLayoutOptions {
  * Checks a layout for what would make the PDF incomplete or hard to read. Errors block saving:
  * - content coverage: every §14 UStG field is printed by a visible block (exemption notes only if the model
  *   has non-standard VAT categories);
- * - clipping: content of a fixed block exceeds its frame (in `measurement`, e.g. of the worst-case sample);
+ * - clipping: content of a fixed block exceeds its frame (in `measurement`, e.g. of the worst-case sample; measured
+ *   with `fit`, only content that does not fit even with the font reduced to 6 pt);
  * - frames outside the page, two growing blocks side by side, unknown font.
  * Warnings: the 5 mm unprintable border, overlapping blocks, the DIN 5008 window, small fonts, low contrast.
  */
@@ -124,7 +125,9 @@ export function checkLayout(layout: PdfLayoutV2, measurement?: LayoutMeasurement
   // --- measured: clipping and overlap ---
   if (measurement) {
     for (const box of measurement.boxes) {
-      if (box.overflowBy) add('error', 'CLIPPED', `The content of block ${box.key} does not fit into its frame (${(box.overflowBy / 10).toFixed(1)} mm too tall)`, box.key);
+      if (box.overflowBy) {
+        add('error', 'CLIPPED', `The content of block ${box.key} does not fit into its frame (${(box.overflowBy / 10).toFixed(1)} mm too tall); make the frame larger or the font smaller`, box.key);
+      }
     }
     const boxes = measurement.boxes.filter((bx) => visible.some((b) => b.key === bx.key) && bx.h > 0);
     const reported = new Set<string>();

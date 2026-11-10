@@ -182,8 +182,20 @@ describe('Layout preview', () => {
     const small = { ...document, blocks: document.blocks.map((b: { key: string }) => (b.key === 'recipient' ? { ...b, frame: { x: 198, y: 478, w: 878, h: 120 } } : b)) };
     const clipped = (await adminClient.query(LAYOUT_PREVIEW, { input: { layout: { document: small } } })).eInvoiceLayoutPreview;
     expect(clipped.pdf).toBeTruthy();
-    expect(clipped.layoutIssues).toEqual([expect.objectContaining({ level: 'error', code: 'CLIPPED', blockKey: 'recipient' })]);
+    expect(clipped.layoutIssues.filter((i: { level: string }) => i.level === 'error')).toEqual([
+      expect.objectContaining({ code: 'CLIPPED', blockKey: 'recipient' }),
+    ]);
     expect(await errorOf(adminClient.query(SAVE_LAYOUT, { input: { layout: { document: small } } }))).toContain('does not fit into its frame');
+  });
+
+  it('saves a larger base font: the fixed blocks fit with a reduced font', async () => {
+    const { eInvoiceDefaultLayout: document } = await adminClient.query(DEFAULT_LAYOUT);
+    const larger = { ...document, theme: { ...document.theme, fontSize: 11 } };
+    const { eInvoiceLayoutPreview } = await adminClient.query(LAYOUT_PREVIEW, { input: { layout: { document: larger } } });
+    expect(eInvoiceLayoutPreview.layoutIssues.filter((i: { level: string }) => i.level === 'error')).toEqual([]);
+    expect(eInvoiceLayoutPreview.layoutIssues.map((i: { code: string }) => i.code)).toContain('FONT_REDUCED');
+    const { updateEInvoiceChannelSettings } = await adminClient.query(SAVE_LAYOUT, { input: { layout: { document: larger } } });
+    expect(updateEInvoiceChannelSettings.layout.document.theme.fontSize).toBe(11);
   });
 
   it('saves layout documents and rejects invalid ones', async () => {

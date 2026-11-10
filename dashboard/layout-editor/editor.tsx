@@ -199,10 +199,15 @@ export function LayoutEditor({ saved, canUpdate }: { saved: { document: LayoutDo
             </Button>
           </span>
         )}
+        {canUpdate && errors.length > 0 && (
+          <span className="ml-auto text-xs text-destructive">
+            {errors.length === 1 ? '1 error' : `${errors.length} errors`} below must be fixed before saving
+          </span>
+        )}
         {canUpdate && (
           <Button
             size="sm"
-            className="ml-auto"
+            className={errors.length ? '' : 'ml-auto'}
             disabled={!dirty || errors.length > 0 || save.isPending || isFetching}
             title={errors.length ? 'Fix the errors first' : undefined}
             onClick={() => save.mutate()}

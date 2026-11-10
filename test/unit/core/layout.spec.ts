@@ -126,7 +126,7 @@ describe('layout checks', () => {
     const fitted = await measure(layout, model, true);
     expect(fitted.options.fontScale!.recipient).toBeLessThan(1);
     expect(fitted.measurement.boxes.find((b) => b.key === 'recipient')!.overflowBy).toBeUndefined();
-    expect(fitted.issues).toEqual([]);
+    expect(fitted.issues).toEqual([expect.objectContaining({ level: 'warning', code: 'FONT_REDUCED', blockKey: 'recipient' })]);
 
     // below 6 pt it is printed beyond the frame instead (never clipped) and reported
     const tiny = await measure(edit(defaultLayout(), 'recipient', { frame: { x: 198, y: 478, w: 878, h: 60 } }), model, true);
@@ -254,4 +254,17 @@ describe('exotic layouts', () => {
       expect(pdf.toString('latin1')).toContain('<pdfaid:part>3</pdfaid:part>');
     });
   }
+});
+
+describe('theme changes', () => {
+  it('allows a larger base font: fixed blocks fit with a reduced font, only real clipping is an error', async () => {
+    const model = sample('worst-case');
+    const layout = defaultLayout();
+    layout.theme.fontSize = 11;
+    const strict = await measure(layout, model);
+    expect(codes(checkLayout(layout, strict.measurement, model))).toContain('CLIPPED');
+    const fitted = await measure(layout, model, true);
+    expect(checkLayout(layout, fitted.measurement, model)).toEqual([]);
+    expect(codes(fitted.issues)).toEqual(expect.arrayContaining(['FONT_REDUCED']));
+  });
 });

@@ -172,7 +172,7 @@ export class InvoiceRenderService {
       switch (format) {
         case 'zugferd': {
           const pdf = await this.renderPdfDetailed(ctx, model);
-          const warnings = (pdf.layout?.issues ?? []).map((i) => ({ code: i.code, text: i.message }));
+          const warnings = (pdf.layout?.issues ?? []).filter((i) => i.code === 'LAYOUT_OVERFLOW').map((i) => ({ code: i.code, text: i.message }));
           for (const w of warnings) Logger.warn(`E-invoice ${model.number}: ${w.text}`, loggerCtx);
           files.push({ format, fileName: `${base}.pdf`, mimeType: 'application/pdf', data: pdf.pdf, xml: toCii(model, 'zugferd'), warnings });
           break;
