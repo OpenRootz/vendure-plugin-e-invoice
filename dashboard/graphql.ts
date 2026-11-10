@@ -134,7 +134,7 @@ export const creditableDocument = doc<{ eInvoice: { id: string; number: string |
   }
 `);
 
-export const eInvoiceListDocument = doc<{ eInvoices: { totalItems: number; items: (EInvoiceRow & { orderCode: string; order: { id: string } })[] } }, { options?: unknown }>(`
+export const eInvoiceListDocument = doc<{ eInvoices: { totalItems: number; items: (EInvoiceRow & { orderCode: string; order: { id: string } | null })[] } }, { options?: unknown }>(`
   query EInvoiceList($options: EInvoiceListOptions) {
     eInvoices(options: $options) {
       totalItems

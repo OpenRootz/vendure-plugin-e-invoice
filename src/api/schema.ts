@@ -87,7 +87,8 @@ export const adminApiExtensions = gql`
     creditNotes: [EInvoice!]!
     "Invoices: total minus credit notes; 0 for credit notes"
     remainingAmount: Money!
-    order: Order!
+"The order; null without the ReadOrder permission"
+    order: Order
     orderCode: String!
     "Result of the runtime validation, if enabled (option validation.mode)"
     validation: EInvoiceValidation
@@ -415,9 +416,9 @@ export const adminApiExtensions = gql`
     eInvoiceChannelSettings: EInvoiceChannelSettings!
     "What is missing before invoices can be issued in this channel (seller data, tax categories, ...)"
     eInvoiceSetupStatus: [EInvoiceIssue!]!
-    "Renders the invoice the order would get now, with a draft number. Nothing is saved and no number is used."
+    "Renders the invoice the order would get now, with a draft number. Nothing is saved and no number is used. Also requires ReadOrder."
     eInvoicePreview(orderId: ID!): EInvoicePreview!
-    "Renders a draft layout with sample data (or an order) through the real PDF pipeline. Nothing is saved."
+    "Renders a draft layout with sample data (or an order) through the real PDF pipeline. Nothing is saved. Rendering an order also requires ReadOrder."
     eInvoiceLayoutPreview(input: EInvoiceLayoutPreviewInput!): EInvoiceLayoutPreview!
     "A layout document to start from (reset to default, DIN 5008 presets)"
     eInvoiceDefaultLayout(preset: EInvoiceLayoutPreset): JSON!

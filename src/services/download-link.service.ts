@@ -1,8 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { ID, RequestContext } from '@vendure/core';
+import { ID, Logger, RequestContext } from '@vendure/core';
 import { createHmac, timingSafeEqual } from 'crypto';
 
-import { PLUGIN_INIT_OPTIONS } from '../constants';
+import { loggerCtx, PLUGIN_INIT_OPTIONS } from '../constants';
 import { EInvoiceFormat } from '../core';
 import { EInvoice } from '../entities';
 import { ResolvedEInvoicePluginOptions } from '../options';
@@ -28,6 +28,8 @@ export type VerifyResult = 'valid' | 'expired' | 'invalid';
  */
 @Injectable()
 export class DownloadLinkService {
+  private warnedAboutHost = false;
+
   constructor(@Inject(PLUGIN_INIT_OPTIONS) private options: ResolvedEInvoicePluginOptions) {}
 
   /** Link to one file of an invoice (default: its first file, usually the ZUGFeRD PDF). */
@@ -76,6 +78,14 @@ export class DownloadLinkService {
     if (this.options.downloadLinks.baseUrl) return this.options.downloadLinks.baseUrl;
     const req = ctx.req;
     if (!req) throw new Error('EInvoicePlugin: set `downloadLinks.baseUrl` to create download links outside of an API request');
+    if (!this.warnedAboutHost) {
+      this.warnedAboutHost = true;
+      Logger.warn(
+        'downloadLinks.baseUrl is not set: download links use the Host header of the request. Set it in production, ' +
+          'so that links (e.g. in emails) cannot point to a host chosen by the client.',
+        loggerCtx,
+      );
+    }
     return `${req.protocol}://${req.get('host')}`;
   }
 }

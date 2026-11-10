@@ -13,6 +13,12 @@ import { DOWNLOAD_ROUTE, DownloadLinkService, MAX_ZIP_INVOICES, SignedPayload } 
 
 const FORMATS: EInvoiceFormat[] = ['zugferd', 'xrechnung-cii', 'xrechnung-ubl'];
 
+/**
+ * Internal entity IDs as they appear in links (integers or UUIDs with the built-in ID strategies). The route is
+ * unauthenticated until the signature is checked, so anything else is rejected before it reaches the database.
+ */
+const ID_PATTERN = /^[A-Za-z0-9-]{1,64}$/;
+
 class HttpError extends Error {
   constructor(
     public status: number,
@@ -56,7 +62,7 @@ export class EInvoiceDownloadController {
   @Get('zip')
   async zip(@Query() query: { ids?: string; exp?: string; sig?: string }, @Res() res: Response) {
     await this.respond(res, async () => {
-      const ids = (query.ids ?? '').split(',').filter(Boolean);
+      const ids = typeof query.ids === 'string' ? query.ids.split(',').filter(Boolean) : [];
       if (!ids.length || ids.length > MAX_ZIP_INVOICES) throw new HttpError(400, `Between 1 and ${MAX_ZIP_INVOICES} invoices`);
       const invoices = await this.loadIssued(ids);
       const channelId = invoices[0].channelId;
@@ -74,6 +80,9 @@ export class EInvoiceDownloadController {
   private async respond(res: Response, produce: () => Promise<{ data: Buffer; fileName: string; mimeType: string }>) {
     res.setHeader('Cache-Control', 'private, no-store');
     res.setHeader('X-Content-Type-Options', 'nosniff');
+    // The files are downloads, never documents of the server's origin; the signed URL must not leak via Referer
+    res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
+    res.setHeader('Referrer-Policy', 'no-referrer');
     try {
       const { data, fileName, mimeType } = await produce();
       res.setHeader('Content-Type', mimeType);
@@ -92,6 +101,7 @@ export class EInvoiceDownloadController {
 
   /** Loads the documents in the order of the IDs; unknown and not yet issued documents are a 404. */
   private async loadIssued(ids: ID[]): Promise<EInvoice[]> {
+    if (ids.some((id) => !ID_PATTERN.test(String(id)))) throw new HttpError(404, 'Not found');
     const invoices = await this.connection.rawConnection
       .getRepository(EInvoice)
       .find({ where: { id: In(ids), status: 'ISSUED' }, relations: ['files'] });
@@ -104,7 +114,8 @@ export class EInvoiceDownloadController {
   private async authorize(channelId: ID, payload: SignedPayload, query: { exp?: string; sig?: string }): Promise<RequestContext> {
     const channel = await this.connection.rawConnection.getRepository(Channel).findOne({ where: { id: channelId } });
     if (!channel) throw new HttpError(404, 'Not found');
-    const result = this.links.verify(payload, Number(query.exp), query.sig ?? '', channel.token);
+    const sig = typeof query.sig === 'string' ? query.sig : '';
+    const result = this.links.verify(payload, Number(query.exp), sig, channel.token);
     if (result === 'invalid') throw new HttpError(403, 'Invalid signature');
     if (result === 'expired') throw new HttpError(410, 'This link has expired. Please request a new one.');
     return this.requestContextService.create({ apiType: 'admin', channelOrToken: channel });
