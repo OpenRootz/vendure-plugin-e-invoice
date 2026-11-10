@@ -421,6 +421,8 @@ export const adminApiExtensions = gql`
     eInvoiceLayoutPreview(input: EInvoiceLayoutPreviewInput!): EInvoiceLayoutPreview!
     "A layout document to start from (reset to default, DIN 5008 presets)"
     eInvoiceDefaultLayout(preset: EInvoiceLayoutPreset): JSON!
+    "Font families a layout can use (plugin option pdf.fonts; the first is the default)"
+    eInvoiceLayoutFonts: [String!]!
   }
 
   extend type Mutation {

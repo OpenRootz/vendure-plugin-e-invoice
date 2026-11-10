@@ -301,6 +301,12 @@ export const layoutPreviewDocument = doc<{ eInvoiceLayoutPreview: LayoutPreview 
   }
 `);
 
+export const layoutFontsDocument = doc<{ eInvoiceLayoutFonts: string[] }>(`
+  query EInvoiceLayoutFonts {
+    eInvoiceLayoutFonts
+  }
+`);
+
 export type LayoutPresetName = 'DEFAULT' | 'DIN_5008_A' | 'DIN_5008_B' | 'MINIMAL';
 
 export const defaultLayoutDocument = doc<{ eInvoiceDefaultLayout: unknown }, { preset?: LayoutPresetName }>(`

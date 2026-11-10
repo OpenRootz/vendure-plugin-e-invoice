@@ -1,5 +1,7 @@
-import { Button, Input, Label, Textarea } from '@vendure/dashboard';
+import { api, Button, Input, Label, Textarea, useQuery } from '@vendure/dashboard';
 import { ReactNode } from 'react';
+
+import { layoutFontsDocument } from '../graphql';
 
 import {
   Block,
@@ -105,7 +107,12 @@ export function BlockList({
                   §14
                 </span>
               )}
-              <button type="button" className="text-xs" title={locked.has(b.key) ? 'Unlock' : 'Lock'} onClick={() => onToggleLock(b.key)}>
+              <button
+                type="button"
+                className="text-xs"
+                title={locked.has(b.key) ? 'Unlock' : 'Lock against moving (only while this page is open; not saved)'}
+                onClick={() => onToggleLock(b.key)}
+              >
                 {locked.has(b.key) ? '🔒' : '🔓'}
               </button>
             </li>
@@ -277,7 +284,7 @@ export function Properties({
           </Button>
         </Row>
       )}
-      {block.type === 'details' && <DetailFields block={block} onChange={(fields) => setProp('fields', fields)} />}
+      {block.type === 'details' && <DetailFields layout={layout} block={block} onChange={(fields) => setProp('fields', fields)} />}
       {block.type === 'lines' && (
         <label className="flex items-center gap-2 text-xs">
           <input
@@ -297,8 +304,14 @@ export function Properties({
   );
 }
 
-function DetailFields({ block, onChange }: { block: Block; onChange: (fields: DetailField[]) => void }) {
+/** Detail rows that print mandatory content (§14 UStG). */
+const MANDATORY_ROWS: Partial<Record<DetailField, string>> = { number: 'number', issueDate: 'issueDate', deliveryDate: 'deliveryDate', sellerTaxId: 'sellerTaxId' };
+
+function DetailFields({ layout, block, onChange }: { layout: LayoutDocument; block: Block; onChange: (fields: DetailField[]) => void }) {
   const fields = detailFields(block);
+  // Rows this block is the last visible carrier of cannot be removed (the layout could not be saved)
+  const lastCarrier = block.visible ? lastCarrierOf(layout, block) : [];
+  const required = (f: DetailField) => !!MANDATORY_ROWS[f] && lastCarrier.includes(MANDATORY_ROWS[f]!);
   const move = (i: number, d: -1 | 1) => {
     const next = [...fields];
     [next[i], next[i + d]] = [next[i + d], next[i]];
@@ -309,8 +322,17 @@ function DetailFields({ block, onChange }: { block: Block; onChange: (fields: De
       <Label className="text-xs">Rows</Label>
       {fields.map((f, i) => (
         <div key={f} className="flex items-center gap-1 text-xs">
-          <input type="checkbox" checked onChange={() => onChange(fields.filter((x) => x !== f))} />
-          <span className="flex-1">{DETAIL_LABELS[f]}</span>
+          <input
+            type="checkbox"
+            checked
+            disabled={required(f)}
+            title={required(f) ? 'Mandatory content (§14 UStG) that no other visible block prints' : undefined}
+            onChange={() => onChange(fields.filter((x) => x !== f))}
+          />
+          <span className="flex-1">
+            {DETAIL_LABELS[f]}
+            {required(f) && <span className="ml-1 rounded bg-muted px-1 text-[10px] uppercase text-muted-foreground">§14</span>}
+          </span>
           <button type="button" disabled={i === 0} onClick={() => move(i, -1)} aria-label="Up">
             ↑
           </button>
@@ -331,6 +353,8 @@ function DetailFields({ block, onChange }: { block: Block; onChange: (fields: De
 
 function PageProperties({ layout, onChange }: { layout: LayoutDocument; onChange: (layout: LayoutDocument) => void }) {
   const theme = (change: Partial<LayoutDocument['theme']>) => onChange({ ...layout, theme: { ...layout.theme, ...change } });
+  const fonts = useQuery({ queryKey: ['e-invoice-layout-fonts'], queryFn: () => api.query(layoutFontsDocument), staleTime: Infinity }).data?.eInvoiceLayoutFonts ?? [];
+  const font = layout.theme.font;
   return (
     <div className="space-y-3 text-sm">
       <h3 className="font-medium">Page and theme</h3>
@@ -357,8 +381,17 @@ function PageProperties({ layout, onChange }: { layout: LayoutDocument; onChange
           onChange={(e) => e.target.value && theme({ fontSize: Math.round(Number(e.target.value) * 2) / 2 })}
         />
       </Row>
-      <Row label="Font (from pdf.fonts)" htmlFor="e-invoice-theme-font">
-        <Input id="e-invoice-theme-font" className="h-8" placeholder="Default" value={layout.theme.font ?? ''} onChange={(e) => theme({ font: e.target.value || undefined })} />
+      <Row label="Font" htmlFor="e-invoice-theme-font">
+        <select id="e-invoice-theme-font" className={selectClass} value={font ?? ''} onChange={(e) => theme({ font: e.target.value || undefined })}>
+          <option value="">Default{fonts[0] ? ` (${fonts[0]})` : ''}</option>
+          {fonts.slice(1).map((f) => (
+            <option key={f} value={f}>
+              {f}
+            </option>
+          ))}
+          {font && !fonts.includes(font) && <option value={font}>{font} (not configured)</option>}
+        </select>
+        <p className="text-xs text-muted-foreground">More fonts: plugin option pdf.fonts (TTF files)</p>
       </Row>
       <div className="grid grid-cols-2 gap-2">
         <Row label="Flow starts on following pages (mm)" htmlFor="e-invoice-cont-top">

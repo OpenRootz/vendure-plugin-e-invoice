@@ -74,6 +74,12 @@ export class EInvoiceAdminResolver {
 
   @Query()
   @Allow(eInvoicePermission.Read)
+  eInvoiceLayoutFonts() {
+    return this.layoutPreview.fontNames();
+  }
+
+  @Query()
+  @Allow(eInvoicePermission.Read)
   eInvoice(@Ctx() ctx: RequestContext, @Args() args: { id: ID }) {
     return this.invoices.findOne(ctx, args.id);
   }

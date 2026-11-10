@@ -91,7 +91,7 @@ export class LayoutPreviewService {
       if (!resolved.layout) return { ...empty, issues, layoutIssues: resolved.issues };
       layout = resolved.layout;
     }
-    await this.settings.assertValidLayout(ctx, layout);
+    // Oversized logos/images are not rejected here: the renderer skips them and reports LOGO_TOO_LARGE
 
     let model: EInvoiceModel;
     if (input.orderId) {
@@ -116,7 +116,7 @@ export class LayoutPreviewService {
     try {
       const result = await this.limited(async () => {
         const rendered = await this.renderer.renderPdfDetailed(ctx, model, { layout, enforceLogoLimit: true });
-        const saveIssues = await this.checkLayout(ctx, layout, sellerSettings, paymentSettings, input.language);
+        const saveIssues = await this.checkLayout(ctx, layout, sellerSettings, paymentSettings);
         return { rendered, saveIssues };
       });
       const { rendered, saveIssues } = result;
@@ -160,16 +160,37 @@ export class LayoutPreviewService {
    * The layout checks with the worst-case sample. Measured like at render time: a fixed block whose content does
    * not fit gets a smaller font (down to 6 pt, reported as FONT_REDUCED); only what still does not fit is an error.
    */
-  private async checkLayout(ctx: RequestContext, layout: LayoutSettings, seller: SellerSettings, payment: PaymentSettings, language?: string | null): Promise<LayoutIssue[]> {
-    const data = await this.sampleSeller(ctx, seller, payment, []);
-    const model = this.sample(ctx, 'worst-case', data, language);
-    const input = await this.renderer.templateInput(ctx, model, layout);
+  private async checkLayout(ctx: RequestContext, layout: LayoutSettings, seller: SellerSettings, payment: PaymentSettings): Promise<LayoutIssue[]> {
     const fonts = this.options.pdf.fonts ?? defaultFonts();
-    const result = await layoutDocument(layout, input, fonts, { fit: true });
-    const reduced = result.issues
-      .filter((i) => i.code === 'FONT_REDUCED')
-      .map((i) => ({ ...i, message: `${i.message} (longest sample invoice)` }));
-    return [...checkLayout(layout, result.measurement, undefined, { fonts: Object.keys(fonts) }), ...reduced];
+    const fontNames = Object.keys(fonts);
+    // Without the font nothing can be laid out; report it (static check) and measure with the default font
+    const unknownFont = !!layout.theme.font && !fontNames.includes(layout.theme.font);
+    const measured: LayoutSettings = unknownFont ? { ...layout, theme: { ...layout.theme, font: undefined } } : layout;
+    const data = await this.sampleSeller(ctx, seller, payment, []);
+    const issues: LayoutIssue[] = unknownFont ? checkLayout(layout, undefined, undefined, { fonts: fontNames }).filter((i) => i.code === 'UNKNOWN_FONT') : [];
+    // Invoices can be issued in any of these languages; labels and sample texts differ in length
+    for (const language of this.checkLanguages(ctx)) {
+      const model = this.sample(ctx, 'worst-case', data, language);
+      // Oversized images are skipped like in the preview (saving rejects them separately)
+      const input = await this.renderer.templateInput(ctx, model, measured, []);
+      const result = await layoutDocument(measured, input, fonts, { fit: true });
+      const reduced = result.issues
+        .filter((i) => i.code === 'FONT_REDUCED')
+        .map((i) => ({ ...i, message: `${i.message} (longest sample invoice, ${language})` }));
+      issues.push(...checkLayout(measured, result.measurement, undefined, { fonts: fontNames }), ...reduced);
+    }
+    // One issue per block and code (e.g. the smallest reduced font is reported by the first language that needs it)
+    return issues.filter((x, i) => issues.findIndex((y) => y.code === x.code && (x.blockKey ? y.blockKey === x.blockKey : y.message === x.message)) === i);
+  }
+
+  /** The channel language plus German and English (the built-in labels). */
+  private checkLanguages(ctx: RequestContext): string[] {
+    return [...new Set([ctx.channel.defaultLanguageCode.split(/[-_]/)[0].toLowerCase(), 'de', 'en'])];
+  }
+
+  /** Font families the PDF can use (`pdf.fonts`; the first is the default). */
+  fontNames(): string[] {
+    return Object.keys(this.options.pdf.fonts ?? defaultFonts());
   }
 
   private sample(ctx: RequestContext, kind: SampleKind, seller: SellerData, language?: string | null): EInvoiceModel {
@@ -184,10 +205,6 @@ export class LayoutPreviewService {
       currencyCode: ctx.channel.defaultCurrencyCode,
       issueDate: this.mapper.today(),
     });
-  }
-
-  private fontNames() {
-    return Object.keys(this.options.pdf.fonts ?? defaultFonts());
   }
 
   private defaultSellerStrategy() {

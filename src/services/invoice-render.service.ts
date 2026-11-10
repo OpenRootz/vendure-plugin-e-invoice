@@ -195,8 +195,16 @@ export class InvoiceRenderService {
 
   /** {@link renderPdf} with the page count, resource problems and the measured layout (for the preview). */
   async renderPdfDetailed(ctx: RequestContext, model: EInvoiceModel, options: RenderPdfOptions = {}): Promise<RenderedPdf> {
-    const layout = options.layout ?? (await this.settings.get(ctx)).layout;
+    let layout = options.layout ?? (await this.settings.get(ctx)).layout;
     const issues: RenderedPdf['issues'] = [];
+    const fontNames = Object.keys(this.options.pdf.fonts ?? defaultFonts());
+    if (layout.theme.font && !fontNames.includes(layout.theme.font)) {
+      // e.g. the font was removed from pdf.fonts after the layout was saved: render with the default font
+      const message = `The layout font "${layout.theme.font}" is not configured in pdf.fonts; using ${fontNames[0]}`;
+      Logger.warn(message, loggerCtx);
+      issues.push({ code: 'UNKNOWN_FONT', message, path: 'layout.theme.font' });
+      layout = { ...layout, theme: { ...layout.theme, font: undefined } };
+    }
     let measured: LayoutResult | undefined;
     const input = await this.templateInput(ctx, model, layout, options.enforceLogoLimit ? issues : undefined);
     input.onLayout = (result) => (measured = result);

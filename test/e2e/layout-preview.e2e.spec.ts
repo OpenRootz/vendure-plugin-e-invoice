@@ -198,6 +198,30 @@ describe('Layout preview', () => {
     expect(updateEInvoiceChannelSettings.layout.document.theme.fontSize).toBe(11);
   });
 
+  it('offers the configured fonts and handles an unknown font without breaking the preview', async () => {
+    const { eInvoiceLayoutFonts } = await adminClient.query(gql`
+      query {
+        eInvoiceLayoutFonts
+      }
+    `);
+    expect(eInvoiceLayoutFonts).toEqual(['Roboto']);
+    const { eInvoiceDefaultLayout: document } = await adminClient.query(DEFAULT_LAYOUT);
+    const arial = { ...document, theme: { ...document.theme, font: 'Arial' } };
+    const { eInvoiceLayoutPreview } = await adminClient.query(LAYOUT_PREVIEW, { input: { layout: { document: arial } } });
+    expect(eInvoiceLayoutPreview.pdf).toBeTruthy();
+    expect(eInvoiceLayoutPreview.layoutIssues).toEqual([expect.objectContaining({ level: 'error', code: 'UNKNOWN_FONT' })]);
+    expect(await errorOf(adminClient.query(SAVE_LAYOUT, { input: { layout: { document: arial } } }))).toContain('"Arial" is not configured');
+  });
+
+  it('rejects a layout without the delivery date row', async () => {
+    const { eInvoiceDefaultLayout: document } = await adminClient.query(DEFAULT_LAYOUT);
+    const noDate = {
+      ...document,
+      blocks: document.blocks.map((b: { key: string }) => (b.key === 'details' ? { ...b, props: { fields: ['number', 'issueDate'] } } : b)),
+    };
+    expect(await errorOf(adminClient.query(SAVE_LAYOUT, { input: { layout: { document: noDate } } }))).toContain('No visible block prints: Delivery date');
+  });
+
   it('saves layout documents and rejects invalid ones', async () => {
     const { eInvoiceDefaultLayout: document } = await adminClient.query(DEFAULT_LAYOUT, { preset: 'DIN_5008_B' });
     expect(document.windowEnvelope).toBe('B');
