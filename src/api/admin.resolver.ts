@@ -5,7 +5,7 @@ import { eInvoicePermission } from '../constants';
 import { EInvoiceFormat } from '../core';
 import { EInvoice, EInvoiceFile } from '../entities';
 import { ChannelSettingsService, UpdateChannelSettingsInput } from '../services/channel-settings.service';
-import { InvoiceService } from '../services/invoice.service';
+import { InvoiceService, ManualCreditNoteInput } from '../services/invoice.service';
 
 const formatEnum = (f: EInvoiceFormat) => f.toUpperCase().replace(/-/g, '_');
 
@@ -39,6 +39,20 @@ export class EInvoiceAdminResolver {
   @Allow(eInvoicePermission.Update)
   async retryEInvoice(@Ctx() ctx: RequestContext, @Args() args: { id: ID }) {
     const invoice = await this.invoices.retry(ctx, args.id);
+    return invoice ? this.invoices.findOne(ctx, invoice.id) : null;
+  }
+
+  @Mutation()
+  @Allow(eInvoicePermission.Create)
+  async createEInvoiceCreditNote(@Ctx() ctx: RequestContext, @Args() args: { input: ManualCreditNoteInput }) {
+    const note = await this.invoices.createCreditNote(ctx, args.input);
+    return this.invoices.findOne(ctx, note.id);
+  }
+
+  @Mutation()
+  @Allow(eInvoicePermission.Create)
+  async cancelAndReissueEInvoice(@Ctx() ctx: RequestContext, @Args() args: { invoiceId: ID }) {
+    const invoice = await this.invoices.cancelAndReissue(ctx, args.invoiceId);
     return this.invoices.findOne(ctx, invoice.id);
   }
 
@@ -51,6 +65,22 @@ export class EInvoiceAdminResolver {
 
 @Resolver('EInvoice')
 export class EInvoiceEntityResolver {
+  constructor(private invoices: InvoiceService) {}
+
+  @ResolveField()
+  correctedInvoice(@Ctx() ctx: RequestContext, @Parent() invoice: EInvoice) {
+    return invoice.correctedInvoiceId ? this.invoices.findOne(ctx, invoice.correctedInvoiceId) : null;
+  }
+
+  @ResolveField()
+  creditNotes(@Ctx() ctx: RequestContext, @Parent() invoice: EInvoice) {
+    return invoice.type === 'invoice' ? this.invoices.creditNotesOf(ctx, invoice.id) : [];
+  }
+
+  @ResolveField()
+  remainingAmount(@Ctx() ctx: RequestContext, @Parent() invoice: EInvoice) {
+    return this.invoices.remainingAmount(ctx, invoice);
+  }
   @ResolveField()
   type(@Parent() invoice: EInvoice) {
     return invoice.type.toUpperCase();

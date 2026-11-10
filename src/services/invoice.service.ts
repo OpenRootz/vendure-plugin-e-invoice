@@ -2,35 +2,53 @@ import { Inject, Injectable, OnApplicationBootstrap } from '@nestjs/common';
 import {
   EventBus,
   ID,
+  idsAreEqual,
   JobQueue,
   JobQueueService,
   Logger,
-  Order,
   OrderStateTransitionEvent,
+  Refund,
+  RefundStateTransitionEvent,
   RequestContext,
   SerializedRequestContext,
   TransactionalConnection,
   UserInputError,
 } from '@vendure/core';
-import { In } from 'typeorm';
 
 import { E_INVOICE_QUEUE, loggerCtx, PLUGIN_INIT_OPTIONS } from '../constants';
-import { calculate, checkModel, toCii } from '../core';
+import { calculate, checkModel, CreditNoteRequest, toCii } from '../core';
 import { EInvoice, EInvoiceReason } from '../entities';
 import { EInvoiceBlockedEvent } from '../events';
-import { OrderModelMapper } from '../mapping/order-model.mapper';
+import { OrderModelMapper, orderFingerprint } from '../mapping/order-model.mapper';
 import { ResolvedEInvoicePluginOptions } from '../options';
 
 import { ChannelSettingsService } from './channel-settings.service';
+import { CreditNoteService, NUMBERED_STATUSES } from './credit-note.service';
 import { InvoiceNumberService } from './invoice-number.service';
 import { InvoiceRenderService } from './invoice-render.service';
+import { lockOrder } from './order-lock';
 
 type JobData =
   | { type: 'reconcile'; orderId: ID; ctx: SerializedRequestContext }
+  | { type: 'credit-refund'; refundId: ID; ctx: SerializedRequestContext }
   | { type: 'render'; invoiceId: ID; ctx: SerializedRequestContext };
 
-/** Invoices that count as "the order has an invoice" (a BLOCKED one has no number yet). */
-const OPEN_STATUSES = ['PENDING', 'ISSUED', 'FAILED'] as const;
+/** While an order is in one of these states, its amounts are not final yet. */
+const UNSETTLED_STATES = ['Modifying', 'ArrangingAdditionalPayment', 'ArrangingPayment', 'AddingItems', 'Draft'];
+
+export interface ManualCreditNoteInput {
+  invoiceId: ID;
+  /** Order lines and quantities to credit */
+  lines?: { orderLineId: ID; quantity: number }[];
+  /** Credit shipping and surcharges */
+  shipping?: boolean;
+  /** Additional gross amount; negative = deduction */
+  amount?: number;
+  /** Credit everything that has not been credited yet */
+  fullReversal?: boolean;
+  /** Printed on the credit note */
+  note?: string;
+}
 
 @Injectable()
 export class InvoiceService implements OnApplicationBootstrap {
@@ -45,6 +63,7 @@ export class InvoiceService implements OnApplicationBootstrap {
     private numbers: InvoiceNumberService,
     private settings: ChannelSettingsService,
     private renderer: InvoiceRenderService,
+    private creditNotes: CreditNoteService,
   ) {}
 
   async onApplicationBootstrap() {
@@ -52,14 +71,30 @@ export class InvoiceService implements OnApplicationBootstrap {
       name: E_INVOICE_QUEUE,
       process: async (job) => {
         const ctx = RequestContext.deserialize(job.data.ctx);
-        if (job.data.type === 'reconcile') await this.reconcile(ctx, job.data.orderId);
-        else await this.renderer.render(ctx, job.data.invoiceId);
+        switch (job.data.type) {
+          case 'reconcile':
+            return void (await this.reconcile(ctx, job.data.orderId));
+          case 'credit-refund':
+            return void (await this.creditRefund(ctx, job.data.refundId));
+          case 'render':
+            return void (await this.renderer.render(ctx, job.data.invoiceId));
+        }
       },
     });
 
     this.eventBus.ofType(OrderStateTransitionEvent).subscribe((event) => {
-      if (this.options.issueOnStates.includes(event.toState) || event.toState === 'Cancelled') {
+      if (
+        this.options.issueOnStates.includes(event.toState) ||
+        event.toState === 'Cancelled' ||
+        event.fromState === 'Modifying' ||
+        event.fromState === 'ArrangingAdditionalPayment'
+      ) {
         this.enqueue({ type: 'reconcile', orderId: event.order.id, ctx: event.ctx.serialize() });
+      }
+    });
+    this.eventBus.ofType(RefundStateTransitionEvent).subscribe((event) => {
+      if (event.toState === 'Settled' && this.options.autoCreditNotes) {
+        this.enqueue({ type: 'credit-refund', refundId: event.refund.id, ctx: event.ctx.serialize() });
       }
     });
   }
@@ -75,7 +110,7 @@ export class InvoiceService implements OnApplicationBootstrap {
     return this.connection.getRepository(ctx, EInvoice).find({
       where: { orderId, channelId: ctx.channelId },
       relations: ['files'],
-      order: { createdAt: 'ASC' },
+      order: { createdAt: 'ASC', id: 'ASC' },
     });
   }
 
@@ -85,18 +120,61 @@ export class InvoiceService implements OnApplicationBootstrap {
    */
   async create(ctx: RequestContext, orderId: ID): Promise<EInvoice> {
     const invoice = await this.connection.withTransaction(ctx, async (txCtx) => {
-      const order = await this.lockOrder(txCtx, orderId);
+      const order = await lockOrder(this.connection, txCtx, orderId);
       if (!order) throw new UserInputError(`Order ${orderId} not found`);
       const open = await this.openInvoice(txCtx, orderId);
       if (open) throw new UserInputError(`Order ${order.code} already has invoice ${open.number}`);
       return this.issue(txCtx, orderId, 'manual');
     });
-    await this.afterIssue(ctx, invoice);
+    await this.afterIssue(ctx, [invoice]);
     return invoice;
   }
 
-  /** BLOCKED: map the order again (the cause may be fixed). FAILED: render again from the snapshot. */
-  async retry(ctx: RequestContext, id: ID): Promise<EInvoice> {
+  /** Manual credit note (admin): lines, shipping, an amount, or a full reversal. */
+  async createCreditNote(ctx: RequestContext, input: ManualCreditNoteInput): Promise<EInvoice> {
+    const note = await this.connection.withTransaction(ctx, async (txCtx) => {
+      const invoice = await this.lockedInvoice(txCtx, input.invoiceId);
+      const model = invoice.model;
+      const request: CreditNoteRequest = {
+        full: input.fullReversal ?? false,
+        charges: input.shipping ?? false,
+        amount: input.amount ?? 0,
+        note: input.note,
+        lines: (input.lines ?? []).map((l) => {
+          const line = model?.lines.find((x) => x.orderLineId !== undefined && idsAreEqual(x.orderLineId, l.orderLineId));
+          if (!line) throw new UserInputError(`Order line ${l.orderLineId} is not part of invoice ${invoice.number}`);
+          return { lineId: line.id, quantity: String(l.quantity) };
+        }),
+      };
+      return this.creditNotes.credit(txCtx, invoice, request, { reason: 'manual' });
+    });
+    await this.afterIssue(ctx, [note]);
+    return note;
+  }
+
+  /**
+   * Full credit note for the invoice plus a new invoice for the current order (e.g. after the buyer data was
+   * corrected). Returns the new invoice, which can be BLOCKED if the checks fail.
+   */
+  async cancelAndReissue(ctx: RequestContext, invoiceId: ID): Promise<EInvoice> {
+    const docs = await this.connection.withTransaction(ctx, async (txCtx) => {
+      const original = await this.lockedInvoice(txCtx, invoiceId);
+      const latest = await this.creditNotes.latestInvoice(txCtx, original.orderId);
+      if (latest && !idsAreEqual(latest.id, original.id)) {
+        throw new UserInputError(`Invoice ${original.number} has been replaced by ${latest.number}`);
+      }
+      const note = await this.creditNotes.credit(txCtx, original, { full: true }, { reason: 'manual', settlement: 'offset' });
+      return [note, await this.issue(txCtx, original.orderId, 'manual')];
+    });
+    await this.afterIssue(ctx, docs);
+    return docs[1];
+  }
+
+  /**
+   * BLOCKED invoice: map the order again (the cause may be fixed). BLOCKED credit note: build it from the refund
+   * again. FAILED: render again from the snapshot.
+   */
+  async retry(ctx: RequestContext, id: ID): Promise<EInvoice | undefined> {
     const existing = await this.findOne(ctx, id);
     if (!existing) throw new UserInputError(`E-invoice ${id} not found`);
     if (existing.status === 'FAILED') {
@@ -104,38 +182,81 @@ export class InvoiceService implements OnApplicationBootstrap {
       return existing;
     }
     if (existing.status !== 'BLOCKED') throw new UserInputError(`E-invoice ${id} is ${existing.status} and cannot be retried`);
+    if (existing.type === 'credit_note') {
+      if (!existing.refundId) throw new UserInputError(`Credit note ${id} has no refund to retry`);
+      return this.creditRefund(ctx, existing.refundId);
+    }
     const invoice = await this.connection.withTransaction(ctx, async (txCtx) => {
-      await this.lockOrder(txCtx, existing.orderId);
+      await lockOrder(this.connection, txCtx, existing.orderId);
       return this.issue(txCtx, existing.orderId, existing.reason);
     });
-    await this.afterIssue(ctx, invoice);
+    await this.afterIssue(ctx, [invoice]);
     return invoice;
+  }
+
+  /** Invoice total minus its credit notes. */
+  remainingAmount(ctx: RequestContext, invoice: EInvoice) {
+    return this.creditNotes.remainingAmount(ctx, invoice);
+  }
+
+  creditNotesOf(ctx: RequestContext, invoiceId: ID) {
+    return this.creditNotes.creditNotesOf(ctx, invoiceId);
+  }
+
+  /** Credit note for a settled refund (job). */
+  async creditRefund(ctx: RequestContext, refundId: ID): Promise<EInvoice | undefined> {
+    const settings = await this.settings.get(ctx);
+    if (!settings.enabled) return undefined;
+    const note = await this.connection.withTransaction(ctx, async (txCtx) => {
+      const refund = await this.connection
+        .getRepository(txCtx, Refund)
+        .findOne({ where: { id: refundId }, relations: ['payment', 'payment.order'] });
+      if (!refund) throw new Error(`Refund ${refundId} not found`);
+      if (!(await lockOrder(this.connection, txCtx, refund.payment.order.id))) return undefined;
+      return this.creditNotes.creditRefund(txCtx, refundId);
+    });
+    if (note) await this.afterIssue(ctx, [note]);
+    return note;
   }
 
   /**
    * The one place that decides what happens with an order after a state change.
    * Runs with the order row locked, so concurrent triggers for the same order are serialized.
+   *
+   * - Cancelled: the open invoice is credited in full; a BLOCKED invoice (no number) is removed.
+   * - Modified (the amounts differ from the invoiced ones): full credit note + new invoice (Q6).
+   * - No invoice yet and the order reached an `issueOnStates` state: issue one.
    */
-  async reconcile(ctx: RequestContext, orderId: ID): Promise<EInvoice | undefined> {
+  async reconcile(ctx: RequestContext, orderId: ID): Promise<EInvoice[]> {
     const settings = await this.settings.get(ctx);
-    if (!settings.enabled) return undefined;
-    const invoice = await this.connection.withTransaction(ctx, async (txCtx) => {
-      const order = await this.lockOrder(txCtx, orderId);
-      if (!order) return undefined;
+    if (!settings.enabled) return [];
+    const docs = await this.connection.withTransaction(ctx, async (txCtx): Promise<EInvoice[]> => {
+      const order = await lockOrder(this.connection, txCtx, orderId);
+      if (!order) return [];
       const repo = this.connection.getRepository(txCtx, EInvoice);
       const blocked = await repo.findOne({ where: { orderId, type: 'invoice', status: 'BLOCKED' } });
+      const open = await this.openInvoice(txCtx, orderId);
 
       if (order.state === 'Cancelled') {
-        // A blocked invoice has no number, so removing it leaves no gap. Credit notes for issued invoices: M7.
+        // A blocked invoice has no number, so removing it leaves no gap
         if (blocked) await repo.remove(blocked);
-        return undefined;
+        if (!open || !this.options.autoCreditNotes) return [];
+        return [await this.creditNotes.credit(txCtx, open, { full: true }, { reason: 'cancellation' })];
       }
-      if (await this.openInvoice(txCtx, orderId)) return undefined;
-      if (!this.options.issueOnStates.includes(order.state) || !settings.autoIssue) return undefined;
-      return this.issue(txCtx, orderId, blocked?.reason ?? 'auto');
+      if (UNSETTLED_STATES.includes(order.state)) return [];
+
+      if (open) {
+        if (!open.orderFingerprint || !this.options.autoCreditNotes) return [];
+        const current = await this.mapper.loadOrder(txCtx, orderId);
+        if (!current || orderFingerprint(current) === open.orderFingerprint) return [];
+        const note = await this.creditNotes.credit(txCtx, open, { full: true }, { reason: 'modification', settlement: 'offset' });
+        return [note, await this.issue(txCtx, orderId, 'modification')];
+      }
+      if (!this.options.issueOnStates.includes(order.state) || !settings.autoIssue) return [];
+      return [await this.issue(txCtx, orderId, blocked?.reason ?? 'auto')];
     });
-    if (invoice) await this.afterIssue(ctx, invoice);
-    return invoice;
+    await this.afterIssue(ctx, docs);
+    return docs;
   }
 
   /**
@@ -163,6 +284,7 @@ export class InvoiceService implements OnApplicationBootstrap {
       totalTax: model.totals.taxTotal,
       totalWithTax: model.totals.grandTotal + model.totals.roundingAmount,
       formats,
+      orderFingerprint: orderFingerprint(order),
     });
 
     const issues = checkModel(model, formats);
@@ -194,9 +316,9 @@ export class InvoiceService implements OnApplicationBootstrap {
   }
 
   /** After the issuing transaction has committed: start rendering. */
-  private async afterIssue(ctx: RequestContext, invoice: EInvoice) {
-    if (invoice.status === 'PENDING') {
-      await this.enqueue({ type: 'render', invoiceId: invoice.id, ctx: ctx.serialize() });
+  private async afterIssue(ctx: RequestContext, docs: EInvoice[]) {
+    for (const doc of docs) {
+      if (doc.status === 'PENDING') await this.enqueue({ type: 'render', invoiceId: doc.id, ctx: ctx.serialize() });
     }
   }
 
@@ -204,21 +326,21 @@ export class InvoiceService implements OnApplicationBootstrap {
     await this.queue.add(data, { retries: 3 }).catch((e) => Logger.error(`Could not add e-invoice job: ${e}`, loggerCtx));
   }
 
-  private openInvoice(ctx: RequestContext, orderId: ID): Promise<EInvoice | null> {
-    return this.connection
-      .getRepository(ctx, EInvoice)
-      .findOne({ where: { orderId, type: 'invoice', status: In([...OPEN_STATUSES]) }, order: { createdAt: 'DESC' } });
+  /** The order's current invoice, unless it has been credited in full. */
+  private async openInvoice(ctx: RequestContext, orderId: ID): Promise<EInvoice | null> {
+    const latest = await this.creditNotes.latestInvoice(ctx, orderId);
+    return latest && (await this.creditNotes.remainingAmount(ctx, latest)) > 0 ? latest : null;
   }
 
-  /** Locks the order row for the rest of the transaction (no-op on SQLite, which serializes writes). */
-  private lockOrder(ctx: RequestContext, orderId: ID): Promise<Order | null> {
-    const qb = this.connection
-      .getRepository(ctx, Order)
-      .createQueryBuilder('locked_order')
-      .innerJoin('locked_order.channels', 'channel', 'channel.id = :channelId', { channelId: ctx.channelId })
-      .where('locked_order.id = :orderId', { orderId });
-    const type = this.connection.rawConnection.options.type;
-    if (type !== 'sqljs' && type !== 'sqlite' && type !== 'better-sqlite3') qb.setLock('pessimistic_write', undefined, ['locked_order']);
-    return qb.getOne();
+  /** Loads an invoice of the current channel and locks its order. */
+  private async lockedInvoice(ctx: RequestContext, invoiceId: ID): Promise<EInvoice> {
+    const invoice = await this.findOne(ctx, invoiceId);
+    if (!invoice) throw new UserInputError(`E-invoice ${invoiceId} not found`);
+    await lockOrder(this.connection, ctx, invoice.orderId);
+    if (invoice.type !== 'invoice') throw new UserInputError(`${invoice.number ?? invoiceId} is not an invoice`);
+    if (!NUMBERED_STATUSES.includes(invoice.status as (typeof NUMBERED_STATUSES)[number])) {
+      throw new UserInputError(`Invoice ${invoice.number ?? invoiceId} is ${invoice.status} and cannot be credited`);
+    }
+    return invoice;
   }
 }

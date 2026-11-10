@@ -12,6 +12,8 @@ import {
   TransactionalConnection,
 } from '@vendure/core';
 
+import { createHash } from 'crypto';
+
 import { PLUGIN_INIT_OPTIONS } from '../constants';
 import { Buyer, EInvoiceFormat, EInvoiceModel, IsoDate, PaymentMeans, VatCategory, VatCategoryCode } from '../core';
 import { ResolvedEInvoicePluginOptions } from '../options';
@@ -31,6 +33,23 @@ export const ORDER_RELATIONS = [
   'surcharges',
   'payments',
 ] as const;
+
+/**
+ * Hash of everything an invoice amount depends on: line quantities and amounts, shipping, surcharges and the total.
+ * A different fingerprint after an order modification means the invoice no longer matches the order.
+ */
+export function orderFingerprint(order: Order): string {
+  const data = {
+    lines: order.lines
+      .filter((l) => l.quantity > 0)
+      .map((l) => [String(l.id), l.quantity, l.proratedLinePrice, l.proratedLinePriceWithTax])
+      .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+    shipping: (order.shippingLines ?? []).map((s) => [String(s.shippingMethodId), s.discountedPrice, s.discountedPriceWithTax]),
+    surcharges: (order.surcharges ?? []).map((s) => [s.sku ?? s.description, s.price, s.priceWithTax]),
+    total: order.totalWithTax,
+  };
+  return createHash('sha256').update(JSON.stringify(data)).digest('hex');
+}
 
 export interface MappedOrder {
   /** Model without number; totals not yet calculated */

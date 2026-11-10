@@ -82,9 +82,14 @@ export class EInvoice extends VendureEntity {
   @EntityId({ nullable: true })
   correctedInvoiceId: ID | null;
 
+  /** The Vendure refund a credit note was created for (one credit note per refund) */
   @Index({ unique: true })
   @Column('varchar', { nullable: true })
   refundId: string | null;
+
+  /** Invoices: hash of the invoiced order amounts, to detect a later order modification */
+  @Column('varchar', { nullable: true, length: 64 })
+  orderFingerprint: string | null;
 
   /** Why the invoice is BLOCKED */
   @Column('simple-json', { nullable: true })

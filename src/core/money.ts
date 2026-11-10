@@ -102,3 +102,33 @@ function formatScaled(value: bigint, scale: number): string {
 export function fromUnits(units: number, decimals: number): Money {
   return toMoney(divRoundHalfUp(BigInt(Math.round(units * 1_000_000)) * 10n ** BigInt(decimals), 1_000_000n));
 }
+
+function toScale(d: ParsedDecimal, scale: number): bigint {
+  return d.value * 10n ** BigInt(scale - d.scale);
+}
+
+/** `a + b` for decimal strings. */
+export function addDecimal(a: Decimal, b: Decimal): Decimal {
+  const pa = parseDecimal(a);
+  const pb = parseDecimal(b);
+  const scale = Math.max(pa.scale, pb.scale);
+  return normalizeDecimal(formatScaled(toScale(pa, scale) + toScale(pb, scale), scale));
+}
+
+/** `a − b` for decimal strings. */
+export function subtractDecimal(a: Decimal, b: Decimal): Decimal {
+  return addDecimal(a, String(b).startsWith('-') ? String(b).slice(1) : `-${b}`);
+}
+
+/** `amount × numerator / denominator`, rounded half up. E.g. the share of a line amount for a partial quantity. */
+export function scaleMoney(amount: Money, numerator: Decimal, denominator: Decimal): Money {
+  const n = parseDecimal(numerator);
+  const d = parseDecimal(denominator);
+  if (d.value <= 0n) throw new Error(`Denominator must be positive, got ${denominator}`);
+  return toMoney(divRoundHalfUp(BigInt(amount) * n.value * 10n ** BigInt(d.scale), d.value * 10n ** BigInt(n.scale)));
+}
+
+/** Net part of a gross amount: `gross × 100 / (100 + rate)`, rounded half up. */
+export function netFromGross(gross: Money, percent: Decimal): Money {
+  return scaleMoney(gross, '100', addDecimal('100', percent));
+}

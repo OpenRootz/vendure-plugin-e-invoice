@@ -271,7 +271,7 @@ function payment(model: EInvoiceModel, labels: PdfLabels, f: Formatters): Node {
   const due = model.totals?.duePayable ?? 0;
   const lines: Node[] = [];
   if (model.type === 'credit_note') {
-    lines.push(labels.refunded);
+    lines.push(model.meta.settlement === 'offset' ? labels.offset : labels.refunded);
   } else if (due > 0) {
     if (model.payment.terms) lines.push(model.payment.terms);
     if (model.payment.dueDate) lines.push(fill(labels.dueDate, { date: f.date(model.payment.dueDate) }));

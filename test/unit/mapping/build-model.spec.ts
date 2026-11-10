@@ -141,6 +141,14 @@ function expectValid(model: Awaited<ReturnType<typeof build>>) {
 }
 
 describe('buildModel', () => {
+  it('caps the prepaid amount at the total (payment exceeds the total after a modification)', async () => {
+    const o = order({ lines: [{ sku: 'KAF-500', price: 1000, qty: 1 }], paid: 5000 });
+    const m = await build(o);
+    expect(m.payment.prepaidAmount).toBe(o.totalWithTax);
+    expect(m.totals?.duePayable).toBe(0);
+    expectValid(m);
+  });
+
   it('maps a net order with shipping: net prices, shipping as FC charge, prepaid = paid', async () => {
     const o = order({
       lines: [

@@ -17,6 +17,7 @@ import {
 import { OrderModelMapper } from './mapping/order-model.mapper';
 import { EInvoicePluginOptions, resolveOptions, ResolvedEInvoicePluginOptions } from './options';
 import { ChannelSettingsService } from './services/channel-settings.service';
+import { CreditNoteService } from './services/credit-note.service';
 import { InvoiceNumberService } from './services/invoice-number.service';
 import { InvoiceRenderService } from './services/invoice-render.service';
 import { InvoiceService } from './services/invoice.service';
@@ -30,6 +31,7 @@ import { InvoiceService } from './services/invoice.service';
     ChannelSettingsService,
     InvoiceNumberService,
     InvoiceRenderService,
+    CreditNoteService,
     InvoiceService,
   ],
   adminApiExtensions: {

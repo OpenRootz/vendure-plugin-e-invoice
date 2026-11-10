@@ -1,6 +1,6 @@
 import { Order, OrderLine, OrderState, Payment, RequestContext } from '@vendure/core';
 
-import { Buyer, EInvoiceModel, IsoDate, PaymentMeans, PdfFonts, PdfLabels, Seller, VatCategory } from './core';
+import { Buyer, CreditAllocationInput, EInvoiceModel, Money, IsoDate, PaymentMeans, PdfFonts, PdfLabels, Seller, VatCategory } from './core';
 import { DefaultBuyerDataStrategy } from './strategies/buyer-data-strategy';
 import { DefaultInvoiceFormatStrategy } from './strategies/format-strategy';
 import {
@@ -42,6 +42,11 @@ export interface EInvoiceMappingHooks {
   language?: (ctx: RequestContext, order: Order) => string | undefined;
   /** Price display in the PDF. Default: net for business buyers, gross otherwise. */
   priceDisplay?: (ctx: RequestContext, order: Order, buyer: Buyer) => 'gross' | 'net' | undefined;
+  /**
+   * How an amount-only refund (Vendure's default) is split across the VAT rates of the invoice.
+   * Default: proportionally to the remaining gross amount per rate; the rounding remainder goes to the largest share.
+   */
+  creditAllocation?: (ctx: RequestContext, input: CreditAllocationInput) => Money[];
   /** Last-mile escape hatch: change anything in the model before the checks run. */
   transformModel?: (ctx: RequestContext, model: EInvoiceModel, order: Order) => EInvoiceModel | Promise<EInvoiceModel>;
 }

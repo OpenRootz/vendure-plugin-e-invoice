@@ -1,4 +1,5 @@
-import { calculate, EInvoiceFormat, EInvoiceModel, InvoiceLine, Money, VatCategory } from '../../src/core';
+import { buildCreditNote, calculate, CreditNoteRequest, EInvoiceFormat, EInvoiceModel, InvoiceLine, Money, VatCategory } from '../../src/core';
+import { mappingLabels } from '../../src/mapping/labels';
 import { model, VAT_19, VAT_7 } from './model-builders';
 
 /**
@@ -275,3 +276,28 @@ export const scenarios: Scenario[] = [
     }),
   }),
 ];
+
+/** Credit notes built from the scenarios above, the same way the plugin builds them from an invoice snapshot. */
+function creditScenario(name: string, description: string, invoiceName: string, request: CreditNoteRequest, number: string): Scenario {
+  const invoice = scenarios.find((s) => s.name === invoiceName)!.model;
+  const credit = buildCreditNote(invoice, [], request, { issueDate: '2026-11-20', texts: mappingLabels('de').creditNote });
+  credit.number = number;
+  return scenario({ name, description, model: credit });
+}
+
+scenarios.push(
+  creditScenario(
+    'credit-note-goodwill',
+    'Amount-only refund (Vendure default) split proportionally across 19 %, 7 % and zero rated (Q5)',
+    'mixed-rates',
+    { amount: 5000, note: 'Kulanz wegen Lieferverzug' },
+    'GS-2026-00002',
+  ),
+  creditScenario(
+    'credit-note-return',
+    'Return of one of two discounted items plus shipping; the SEPA transfer of the invoice becomes ZZZ',
+    'b2b-net',
+    { lines: [{ lineId: '1', quantity: '1' }], charges: true },
+    'GS-2026-00003',
+  ),
+);

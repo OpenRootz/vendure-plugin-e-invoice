@@ -1,4 +1,5 @@
 import { vatGroupKey } from './calculate';
+import type { CreditNoteErrorCode } from './credit-note';
 import { EInvoiceFormat, EInvoiceModel, InvoiceLine, VatCategory, VatCategoryCode } from './model';
 import { isZeroDecimal, multiply, sum } from './money';
 
@@ -35,7 +36,7 @@ export type IssueCode =
   | 'TOTALS_MISSING';
 
 export interface InvoiceIssue {
-  code: IssueCode;
+  code: IssueCode | CreditNoteErrorCode;
   message: string;
   /** Path in the model, e.g. `lines[2].vat` */
   path?: string;

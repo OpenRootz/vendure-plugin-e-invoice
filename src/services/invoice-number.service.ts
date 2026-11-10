@@ -6,6 +6,8 @@ import { EInvoiceSequence } from '../entities';
 import { ResolvedEInvoicePluginOptions } from '../options';
 import { NumberInput } from '../strategies/types';
 
+import { supportsRowLocks } from './order-lock';
+
 export interface ReservedNumber {
   key: string;
   value: number;
@@ -34,15 +36,10 @@ export class InvoiceNumberService {
     const sequence = await repo.findOneOrFail({
       where: { key },
       // SQLite / sql.js serialize write transactions anyway and do not support row locks
-      lock: this.supportsRowLocks() ? { mode: 'pessimistic_write' } : undefined,
+      lock: supportsRowLocks(this.connection) ? { mode: 'pessimistic_write' } : undefined,
     });
     const value = sequence.lastValue + 1;
     await repo.update({ id: sequence.id }, { lastValue: value });
     return { key, value, number: strategy.format(ctx, { ...input, value }) };
-  }
-
-  private supportsRowLocks(): boolean {
-    const type = this.connection.rawConnection.options.type;
-    return type !== 'sqljs' && type !== 'sqlite' && type !== 'better-sqlite3';
   }
 }

@@ -98,7 +98,15 @@ export interface AllowanceCharge {
   vendureTaxAmount?: Money;
   /** Technical rounding adjustment (gross-price channels); not serialized, hidden in gross price display */
   rounding?: boolean;
+  /** Credit notes: the item of the corrected invoice this credits (not serialized) */
+  creditOf?: CreditReference;
 }
+
+/**
+ * Credit notes: which item of the corrected invoice a credit note item reverses.
+ * Items without a reference are amount credits (e.g. goodwill refunds), split by VAT rate.
+ */
+export type CreditReference = { line: string } | { charge: number } | { allowance: number };
 
 export interface InvoiceLine {
   /** BT-126 */
@@ -130,6 +138,8 @@ export interface InvoiceLine {
   vendureTaxAmount?: Money;
   /** For the PDF only; never written to the XML */
   display?: { grossUnitPrice?: Money; grossAmount?: Money };
+  /** Credit notes: the item of the corrected invoice this line credits (not serialized) */
+  creditOf?: CreditReference;
 }
 
 export type PaymentMeans =
@@ -234,5 +244,7 @@ export interface EInvoiceModel {
     channelCode: string;
     pricesIncludeTax: boolean;
     priceDisplay: 'gross' | 'net';
+    /** Credit notes: refunded to the buyer (default) or offset against a new invoice (cancel and reissue) */
+    settlement?: 'refund' | 'offset';
   };
 }

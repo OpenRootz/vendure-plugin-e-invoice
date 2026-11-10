@@ -39,7 +39,7 @@ export interface BuildModelInput {
  * - The difference `quantity × unitPrice − proratedLinePrice` becomes line allowances (promotions) and,
  *   in gross-price channels, a rounding allowance or charge, so BT-131 = qty × price − allowances + charges holds exactly.
  * - Shipping lines become document-level charges (`FC`); surcharges become charges, negative ones allowances.
- * - Settled payments are the prepaid amount (BT-113).
+ * - Settled payments are the prepaid amount (BT-113), at most the order total.
  */
 export function buildModel(input: BuildModelInput): EInvoiceModel {
   const { order } = input;
@@ -75,7 +75,10 @@ export function buildModel(input: BuildModelInput): EInvoiceModel {
   }
 
   const payments = order.payments ?? [];
-  const prepaidAmount = payments.filter((p) => p.state === 'Settled').reduce((s, p) => s + p.amount, 0);
+  // Capped at the total: after a modification or partial cancellation the payment can exceed the new total (the
+  // difference is refunded), and an amount-only refund (e.g. goodwill) does not change the order total
+  const settled = payments.filter((p) => p.state === 'Settled').reduce((s, p) => s + p.amount, 0);
+  const prepaidAmount = Math.min(settled, order.totalWithTax);
   const means: PaymentMeans[] = [];
   for (const payment of payments.filter((p) => p.state === 'Settled' || p.state === 'Authorized')) {
     const m = input.paymentMeans(payment);

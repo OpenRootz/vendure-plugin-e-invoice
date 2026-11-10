@@ -41,6 +41,8 @@ export interface PdfLabels {
   alreadyPaid: string;
   refundTotal: string;
   refunded: string;
+  /** Credit note that is offset against a new invoice (cancel and reissue) */
+  offset: string;
   directDebit: string;
   page: string;
   of: string;
@@ -90,6 +92,7 @@ export const DEFAULT_LABELS: Record<string, PdfLabels> = {
     alreadyPaid: 'Der Rechnungsbetrag wurde bereits beglichen.',
     refundTotal: 'Erstattungsbetrag',
     refunded: 'Der Betrag wird Ihnen über die ursprüngliche Zahlungsart erstattet.',
+    offset: 'Diese Rechnungskorrektur storniert die oben genannte Rechnung. Der Betrag wird mit der neuen Rechnung verrechnet.',
     directDebit: 'Der Betrag wird per SEPA-Lastschrift eingezogen (Mandat {mandate}, Gläubiger-ID {creditor}).',
     page: 'Seite',
     of: 'von',
@@ -137,6 +140,7 @@ export const DEFAULT_LABELS: Record<string, PdfLabels> = {
     alreadyPaid: 'The invoice amount has already been paid.',
     refundTotal: 'Refund amount',
     refunded: 'The amount will be refunded via the original payment method.',
+    offset: 'This credit note cancels the invoice referenced above. The amount is offset against the new invoice.',
     directDebit: 'The amount will be collected by SEPA direct debit (mandate {mandate}, creditor ID {creditor}).',
     page: 'Page',
     of: 'of',
