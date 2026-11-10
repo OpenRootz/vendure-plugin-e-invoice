@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { Asset, ConfigService, EventBus, ID, Logger, RequestContext, TransactionalConnection } from '@vendure/core';
 import { createHash } from 'crypto';
+import { In } from 'typeorm';
 
 import { loggerCtx, PLUGIN_INIT_OPTIONS } from '../constants';
 import {
@@ -20,6 +21,7 @@ import { EInvoiceFailedEvent, EInvoiceIssuedEvent } from '../events';
 import { ResolvedEInvoicePluginOptions } from '../options';
 
 import { ChannelSettingsService, MAX_LOGO_BYTES } from './channel-settings.service';
+import { supportsRowLocks } from './order-lock';
 
 export interface RenderedFile {
   format: EInvoiceFormat;
@@ -92,6 +94,12 @@ export class InvoiceRenderService {
       const files = await this.renderFiles(ctx, invoice.model as EInvoiceModel, invoice.formats);
       const validation = await this.validate(ctx, invoice, files);
       const issued = await this.connection.withTransaction(ctx, async (txCtx) => {
+        // Another render of the same document (job retry, manual retry) may have finished meanwhile
+        const current = await this.connection.getRepository(txCtx, EInvoice).findOne({
+          where: { id: invoice.id },
+          lock: supportsRowLocks(this.connection) ? { mode: 'pessimistic_write' } : undefined,
+        });
+        if (current?.status !== 'PENDING' && current?.status !== 'FAILED') return undefined;
         const model = invoice.model as EInvoiceModel;
         const fileRepo = this.connection.getRepository(txCtx, EInvoiceFile);
         for (const file of files) {
@@ -120,12 +128,14 @@ export class InvoiceRenderService {
         await this.eventBus.publish(new EInvoiceIssuedEvent(txCtx, saved));
         return saved;
       });
+      if (!issued) return (await repo.findOne({ where: { id: invoice.id } })) ?? undefined;
       Logger.info(`Issued e-invoice ${issued.number}`, loggerCtx);
       return issued;
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       const validation = e instanceof ValidationFailedError ? e.summary : invoice.validation;
-      await repo.update({ id: invoice.id }, { status: 'FAILED', errorMessage: message, validation });
+      // Never downgrade a document that a concurrent render has issued
+      await repo.update({ id: invoice.id, status: In(['PENDING', 'FAILED']) }, { status: 'FAILED', errorMessage: message, validation });
       Object.assign(invoice, { status: 'FAILED', errorMessage: message, validation });
       Logger.error(`Rendering e-invoice ${invoice.number} failed: ${message}`, loggerCtx);
       await this.eventBus.publish(new EInvoiceFailedEvent(ctx, invoice, message));

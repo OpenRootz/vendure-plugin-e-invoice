@@ -1,11 +1,12 @@
-import { RequestContext } from '@vendure/core';
+import { RequestContext, RequestContextService } from '@vendure/core';
 import { createTestEnvironment, E2E_DEFAULT_CHANNEL_TOKEN } from '@vendure/testing';
 import gql from 'graphql-tag';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { DefaultTemplatePdfStrategy, PdfTemplateInput } from '../../src';
+import { InvoiceRenderService } from '../../src/services/invoice-render.service';
 import { initialData } from '../fixtures/initial-data';
-import { createConfig, fixtures } from '../helpers';
+import { createConfig, fixtures, usePostgres } from '../helpers';
 
 import { CREATE_INVOICE, E_INVOICE_FIELDS, InvoiceResult, placeOrder, SELLER_SETTINGS, waitForInvoices } from './helpers';
 
@@ -270,5 +271,22 @@ describe('Admin API', () => {
 
     const sorted = (await adminClient.query(LIST, { options: { sort: { number: 'ASC' }, take: 1 } })).eInvoices;
     expect(sorted).toMatchObject({ totalItems: 2, items: [{ number: no(1) }] });
+  });
+
+  // sql.js cannot run two transactions at the same time
+  it.runIf(usePostgres)('renders a document only once when two renders run at the same time', async () => {
+    pdfStrategy.failing = true;
+    const order = await placeOrder(shopClient, { items: [{ sku: 'BOOK-1', quantity: 1 }] });
+    await adminClient.query(CREATE_INVOICE, { orderId: order.id });
+    const [failed] = await waitForInvoices(adminClient, order.id, (i) => i[0]?.status === 'FAILED');
+    pdfStrategy.failing = false;
+
+    const ctx = await server.app.get(RequestContextService).create({ apiType: 'admin' });
+    const renderer = server.app.get(InvoiceRenderService);
+    // The test config encodes ids in the API (T_3)
+    const id = failed.id.replace(/^T_/, '');
+    await Promise.all([renderer.render(ctx, id), renderer.render(ctx, id)]);
+    const [invoice] = await waitForInvoices(adminClient, order.id, issued);
+    expect(invoice.files).toHaveLength(1);
   });
 });
