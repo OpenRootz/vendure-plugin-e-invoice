@@ -119,7 +119,10 @@ describe('Downloads and Shop API', () => {
 
   it('rejects tampered, foreign and expired links', async () => {
     const url = invoice.files[0].downloadUrl;
-    expect((await get(withParam(url, 'sig', 'x' + new URL(url).searchParams.get('sig')!.slice(1)))).status).toBe(403);
+    const original = new URL(url).searchParams.get('sig')!;
+    // Swap the first character for a different one, so the signature is always changed
+    const tampered = (original[0] === 'x' ? 'y' : 'x') + original.slice(1);
+    expect((await get(withParam(url, 'sig', tampered))).status).toBe(403);
     expect((await get(withParam(url, 'exp', String(Number(new URL(url).searchParams.get('exp')) + 60)))).status).toBe(403);
     expect((await get(withParam(url, 'f', 'xrechnung-cii'))).status).toBe(403);
     expect((await get(withParam(url, 'f', 'nonsense'))).status).toBe(400);
