@@ -1,12 +1,12 @@
 import { OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
-import { Injector, PluginCommonModule, Type, VendurePlugin } from '@vendure/core';
+import { Injector, Logger, PluginCommonModule, Type, VendurePlugin } from '@vendure/core';
 
 import { EInvoiceDownloadController } from './api/download.controller';
 import { adminApiExtensions, shopApiExtensions } from './api/schema';
 import { EInvoiceShopEntityResolver, EInvoiceShopOrderResolver } from './api/shop.resolver';
 import { EInvoiceAdminResolver, EInvoiceEntityResolver, EInvoiceFileResolver, EInvoiceOrderResolver } from './api/admin.resolver';
-import { eInvoicePermission, PLUGIN_INIT_OPTIONS } from './constants';
+import { eInvoicePermission, loggerCtx, PLUGIN_INIT_OPTIONS } from './constants';
 import { customFields } from './custom-fields';
 import {
   defineBlobColumn,
@@ -21,6 +21,7 @@ import { EInvoicePluginOptions, resolveOptions, ResolvedEInvoicePluginOptions } 
 import { ChannelSettingsService } from './services/channel-settings.service';
 import { CreditNoteService } from './services/credit-note.service';
 import { DownloadLinkService } from './services/download-link.service';
+import { NoopValidator } from './strategies/validator';
 import { InvoiceNumberService } from './services/invoice-number.service';
 import { InvoiceRenderService } from './services/invoice-render.service';
 import { InvoiceService } from './services/invoice.service';
@@ -71,6 +72,10 @@ export class EInvoicePlugin implements OnApplicationBootstrap, OnApplicationShut
   }
 
   async onApplicationBootstrap() {
+    const { validation } = EInvoicePlugin.options;
+    if (validation.mode !== 'off' && validation.validator instanceof NoopValidator) {
+      Logger.warn(`validation.mode is '${validation.mode}', but no validator is configured (e.g. KositHttpValidator)`, loggerCtx);
+    }
     const injector = new Injector(this.moduleRef);
     for (const strategy of this.strategies()) {
       await strategy.init?.(injector);
@@ -85,6 +90,6 @@ export class EInvoicePlugin implements OnApplicationBootstrap, OnApplicationShut
 
   private strategies() {
     const o = EInvoicePlugin.options;
-    return [o.numberStrategy, o.sellerStrategy, o.buyerStrategy, o.formatStrategy, o.storage, o.pdfStrategy];
+    return [o.numberStrategy, o.sellerStrategy, o.buyerStrategy, o.formatStrategy, o.storage, o.pdfStrategy, o.validation.validator];
   }
 }

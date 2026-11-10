@@ -3,6 +3,8 @@ import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
 
 import { EInvoiceFormat, EInvoiceModel, EInvoiceType, InvoiceIssue } from '../core';
 
+import { ValidationMessage } from '../strategies/types';
+
 import { EInvoiceFile } from './e-invoice-file.entity';
 
 /**
@@ -13,6 +15,15 @@ import { EInvoiceFile } from './e-invoice-file.entity';
  * - `VOID`: a failed invoice that can never be rendered. The number stays consumed and the reason is documented.
  */
 export type EInvoiceStatus = 'BLOCKED' | 'PENDING' | 'ISSUED' | 'FAILED' | 'VOID';
+export interface ValidationSummary {
+  mode: 'report' | 'enforce';
+  validatedAt: string;
+  valid: boolean;
+  results: { format: EInvoiceFormat; valid: boolean; validator: string; messages: ValidationMessage[] }[];
+  /** The validator could not be reached or failed */
+  error?: string;
+}
+
 export type EInvoiceReason = 'auto' | 'manual' | 'refund' | 'cancellation' | 'modification';
 
 @Entity('e_invoice')
@@ -101,4 +112,8 @@ export class EInvoice extends VendureEntity {
 
   @Column('varchar', { nullable: true })
   voidReason: string | null;
+
+  /** Result of the runtime validation (option `validation`), if it ran */
+  @Column('simple-json', { nullable: true })
+  validation: ValidationSummary | null;
 }

@@ -89,6 +89,34 @@ export const adminApiExtensions = gql`
     remainingAmount: Money!
     order: Order!
     orderCode: String!
+    "Result of the runtime validation, if enabled (option validation.mode)"
+    validation: EInvoiceValidation
+  }
+
+  type EInvoiceValidationMessage {
+    "error, warning or information"
+    level: String!
+    "Rule ID, e.g. BR-CO-16"
+    code: String
+    text: String!
+    location: String
+  }
+
+  type EInvoiceValidationResult {
+    format: EInvoiceFormat!
+    valid: Boolean!
+    validator: String!
+    messages: [EInvoiceValidationMessage!]!
+  }
+
+  type EInvoiceValidation {
+    "report or enforce"
+    mode: String!
+    validatedAt: DateTime!
+    valid: Boolean!
+    results: [EInvoiceValidationResult!]!
+    "The validator could not be reached or failed"
+    error: String
   }
 
   type EInvoiceList implements PaginatedList {

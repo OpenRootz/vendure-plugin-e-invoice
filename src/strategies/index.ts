@@ -5,3 +5,4 @@ export * from './pdf-strategy';
 export * from './seller-data-strategy';
 export * from './storage-strategy';
 export * from './types';
+export * from './validator';

@@ -183,6 +183,12 @@ export class EInvoiceEntityResolver {
   files(@Parent() invoice: EInvoice) {
     return invoice.files ?? [];
   }
+
+  @ResolveField()
+  validation(@Parent() invoice: EInvoice) {
+    const v = invoice.validation;
+    return v && { ...v, results: v.results.map((r) => ({ ...r, format: formatEnum(r.format) })) };
+  }
 }
 
 /** Shared by the Admin and the Shop API. */

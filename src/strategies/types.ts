@@ -88,3 +88,37 @@ export interface InvoiceStorageStrategy extends InjectableStrategy {
 export interface InvoicePdfStrategy extends InjectableStrategy {
   buildDocDefinition(ctx: RequestContext, input: PdfTemplateInput): PdfDocDefinition | Promise<PdfDocDefinition>;
 }
+
+export interface ValidationMessage {
+  level: 'error' | 'warning' | 'information';
+  /** Rule ID, e.g. `BR-CO-16` */
+  code?: string;
+  text: string;
+  /** XPath of the element, if the validator reports one */
+  location?: string;
+}
+
+export interface ValidationReport {
+  /** `false` if the document must not be issued (EN 16931 / XRechnung rules violated) */
+  valid: boolean;
+  messages: ValidationMessage[];
+  /** Name of the validator, e.g. `KoSIT Validator 1.6.3` */
+  validator: string;
+}
+
+export interface ValidationInput {
+  format: EInvoiceFormat;
+  fileName: string;
+  /** The rendered file (PDF or XML) */
+  data: Buffer;
+  /** The XML of the document; for the ZUGFeRD PDF the embedded CII XML */
+  xml: string;
+}
+
+/**
+ * Optional runtime validation of rendered documents, e.g. against a KoSIT validator running as a sidecar
+ * ({@link KositHttpValidator}). Enabled with the `validation.mode` option.
+ */
+export interface InvoiceValidator extends InjectableStrategy {
+  validate(ctx: RequestContext, input: ValidationInput): Promise<ValidationReport>;
+}

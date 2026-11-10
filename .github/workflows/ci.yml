@@ -75,6 +75,19 @@ jobs:
       - name: PDFs and XML generated from e2e orders
         if: always()
         run: bash test/validate/validate.sh test/__output__/e2e
+      - uses: pnpm/action-setup@v4
+        if: always()
+      - uses: actions/setup-node@v4
+        if: always()
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: KositHttpValidator against a KoSIT daemon
+        if: always()
+        run: |
+          pnpm install --frozen-lockfile
+          bash test/validate/kosit-daemon.sh 8080
+          KOSIT_URL=http://localhost:8080/ pnpm vitest run test/unit/validator.spec.ts
       - if: failure()
         uses: actions/upload-artifact@v4
         with:

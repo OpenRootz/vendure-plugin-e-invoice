@@ -9,8 +9,10 @@ import {
   InvoiceNumberStrategy,
   InvoicePdfStrategy,
   InvoiceStorageStrategy,
+  InvoiceValidator,
   SellerDataStrategy,
 } from './strategies/types';
+import { NoopValidator } from './strategies/validator';
 import { DefaultInvoiceNumberStrategy } from './strategies/number-strategy';
 import { DefaultTemplatePdfStrategy } from './strategies/pdf-strategy';
 import { ChannelSettingsSellerStrategy } from './strategies/seller-data-strategy';
@@ -91,6 +93,12 @@ export interface EInvoicePluginOptions {
   roundingFallbackThreshold?: number;
   /** IANA time zone used for issue and due dates. Default: the time zone of the server process. */
   timeZone?: string;
+  /**
+   * Runtime validation of every rendered document. Default: off (validation belongs in CI; see the README).
+   * - `'report'`: validate, store the result on the invoice, issue anyway
+   * - `'enforce'`: a rejected document is not issued but FAILED (it keeps its number; fix and retry, or void it)
+   */
+  validation?: { validator: InvoiceValidator; mode: 'off' | 'report' | 'enforce' };
   /** Signed download links. All links are signed with `secret` and expire. */
   downloadLinks?: DownloadLinkOptions;
   /** Make the buyer custom fields (VAT ID, buyer reference, Leitweg-ID, PO number) readable and writable in the Shop API. Default: `true`. */
@@ -133,6 +141,7 @@ export function resolveOptions(options: EInvoicePluginOptions): ResolvedEInvoice
     formatStrategy: new DefaultInvoiceFormatStrategy(),
     storage: new DatabaseInvoiceStorageStrategy(),
     pdfStrategy: new DefaultTemplatePdfStrategy(),
+    validation: { validator: new NoopValidator(), mode: 'off' },
     pdf: {},
     mapping: {},
     ...stripUndefined(options),

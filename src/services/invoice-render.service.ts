@@ -4,7 +4,7 @@ import { createHash } from 'crypto';
 
 import { loggerCtx, PLUGIN_INIT_OPTIONS } from '../constants';
 import { EInvoiceFormat, EInvoiceModel, pdfLabels, PdfTemplateInput, renderZugferdPdf, toCii, toUbl } from '../core';
-import { EInvoice, EInvoiceFile } from '../entities';
+import { EInvoice, EInvoiceFile, ValidationSummary } from '../entities';
 import { EInvoiceFailedEvent, EInvoiceIssuedEvent } from '../events';
 import { ResolvedEInvoicePluginOptions } from '../options';
 
@@ -15,7 +15,21 @@ export interface RenderedFile {
   fileName: string;
   mimeType: string;
   data: Buffer;
+  /** The XML of the document; for the ZUGFeRD PDF the embedded CII XML */
+  xml: string;
 }
+
+/** Rendering succeeded, but the validator rejected a document (`validation.mode: 'enforce'`). */
+export class ValidationFailedError extends Error {
+  constructor(public summary: ValidationSummary) {
+    const errors = summary.results.flatMap((r) => r.messages.filter((m) => m.level === 'error'));
+    const detail = summary.error ?? errors.slice(0, 5).map((m) => (m.code ? `${m.code}: ${m.text}` : m.text)).join('; ');
+    super(`Validation failed${detail ? `: ${detail}` : ''}`);
+  }
+}
+
+/** Keep the stored summary small */
+const MAX_MESSAGES = 50;
 
 /**
  * Phase 2: renders the files of a PENDING (or FAILED) invoice from its snapshot and stores them.
@@ -42,6 +56,7 @@ export class InvoiceRenderService {
 
     try {
       const files = await this.renderFiles(ctx, invoice.model as EInvoiceModel, invoice.formats);
+      const validation = await this.validate(ctx, invoice, files);
       const issued = await this.connection.withTransaction(ctx, async (txCtx) => {
         const model = invoice.model as EInvoiceModel;
         const fileRepo = this.connection.getRepository(txCtx, EInvoiceFile);
@@ -66,6 +81,7 @@ export class InvoiceRenderService {
         }
         invoice.status = 'ISSUED';
         invoice.errorMessage = null;
+        invoice.validation = validation;
         const saved = await this.connection.getRepository(txCtx, EInvoice).save(invoice);
         await this.eventBus.publish(new EInvoiceIssuedEvent(txCtx, saved));
         return saved;
@@ -74,12 +90,44 @@ export class InvoiceRenderService {
       return issued;
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
-      await repo.update({ id: invoice.id }, { status: 'FAILED', errorMessage: message });
-      Object.assign(invoice, { status: 'FAILED', errorMessage: message });
+      const validation = e instanceof ValidationFailedError ? e.summary : invoice.validation;
+      await repo.update({ id: invoice.id }, { status: 'FAILED', errorMessage: message, validation });
+      Object.assign(invoice, { status: 'FAILED', errorMessage: message, validation });
       Logger.error(`Rendering e-invoice ${invoice.number} failed: ${message}`, loggerCtx);
       await this.eventBus.publish(new EInvoiceFailedEvent(ctx, invoice, message));
       throw e;
     }
+  }
+
+  /**
+   * Runs the configured validator on every file (unless `validation.mode` is `'off'`). In `'enforce'` mode a
+   * rejected document or a failing validator throws {@link ValidationFailedError}.
+   */
+  private async validate(ctx: RequestContext, invoice: EInvoice, files: RenderedFile[]): Promise<ValidationSummary | null> {
+    const { mode, validator } = this.options.validation;
+    if (mode === 'off') return null;
+    const summary: ValidationSummary = { mode, validatedAt: new Date().toISOString(), valid: true, results: [] };
+    try {
+      for (const file of files) {
+        const report = await validator.validate(ctx, { format: file.format, fileName: file.fileName, data: file.data, xml: file.xml });
+        summary.results.push({
+          format: file.format,
+          valid: report.valid,
+          validator: report.validator,
+          messages: report.messages.slice(0, MAX_MESSAGES),
+        });
+        summary.valid &&= report.valid;
+      }
+    } catch (e) {
+      summary.valid = false;
+      summary.error = e instanceof Error ? e.message : String(e);
+    }
+    if (!summary.valid) {
+      const what = summary.error ? `could not be validated: ${summary.error}` : 'was rejected by the validator';
+      Logger.warn(`E-invoice ${invoice.number} ${what}`, loggerCtx);
+      if (mode === 'enforce') throw new ValidationFailedError(summary);
+    }
+    return summary;
   }
 
   async renderFiles(ctx: RequestContext, model: EInvoiceModel, formats: EInvoiceFormat[]): Promise<RenderedFile[]> {
@@ -88,7 +136,13 @@ export class InvoiceRenderService {
     for (const format of formats) {
       switch (format) {
         case 'zugferd':
-          files.push({ format, fileName: `${base}.pdf`, mimeType: 'application/pdf', data: await this.renderPdf(ctx, model) });
+          files.push({
+            format,
+            fileName: `${base}.pdf`,
+            mimeType: 'application/pdf',
+            data: await this.renderPdf(ctx, model),
+            xml: toCii(model, 'zugferd'),
+          });
           break;
         case 'xrechnung-cii':
           files.push(xmlFile(format, `${base}-xrechnung.xml`, toCii(model, 'xrechnung')));
@@ -144,5 +198,5 @@ export function fileBaseName(number: string): string {
 }
 
 function xmlFile(format: EInvoiceFormat, fileName: string, content: string): RenderedFile {
-  return { format, fileName, mimeType: 'application/xml', data: Buffer.from(content, 'utf8') };
+  return { format, fileName, mimeType: 'application/xml', data: Buffer.from(content, 'utf8'), xml: content };
 }
