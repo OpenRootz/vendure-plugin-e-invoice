@@ -388,6 +388,8 @@ pnpm install
 pnpm test                   # unit + e2e (sql.js)
 TEST_DB=postgres pnpm test  # e2e against Postgres (pnpm db:up first)
 pnpm typecheck              # plugin and dashboard extension
+pnpm lint                   # ESLint (pnpm lint:fix to fix what can be fixed)
+pnpm format                 # Prettier (pnpm format:check in CI)
 pnpm dashboard:build        # dashboard incl. the extension → test/__output__/dashboard
 pnpm db:up && pnpm dev      # dev server on http://localhost:3050 (/dashboard, superadmin / superadmin)
 pnpm validate [dir]         # KoSIT (XRechnung/EN 16931), Mustang (ZUGFeRD), veraPDF (PDF/A-3b)
@@ -399,6 +401,9 @@ pnpm validate test/__output__/e2e # validate the invoices generated from e2e ord
 
 The sql.js e2e tests cache their seeded database in `test/__data__/`. Delete that folder after changing
 entities, custom fields or test fixtures.
+
+CI runs lint, formatting and `pnpm audit --prod` next to the tests; CodeQL scans the code and the workflows, and
+Dependabot proposes dependency and GitHub Actions updates weekly.
 
 ## License
 
