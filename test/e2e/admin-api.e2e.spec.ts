@@ -1,5 +1,5 @@
 import { RequestContext } from '@vendure/core';
-import { createTestEnvironment } from '@vendure/testing';
+import { createTestEnvironment, E2E_DEFAULT_CHANNEL_TOKEN } from '@vendure/testing';
 import gql from 'graphql-tag';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -105,6 +105,27 @@ const PREVIEW = gql`
   }
 `;
 
+const LAYOUT_PREVIEW = gql`
+  query ($input: EInvoiceLayoutPreviewInput!) {
+    eInvoiceLayoutPreview(input: $input) {
+      pdf
+    }
+  }
+`;
+
+const CREATE_CHANNEL = gql`
+  mutation ($input: CreateChannelInput!) {
+    createChannel(input: $input) {
+      ... on Channel {
+        id
+      }
+      ... on ErrorResult {
+        message
+      }
+    }
+  }
+`;
+
 const VOID = gql`
   mutation ($id: ID!, $reason: String!) {
     voidEInvoice(id: $id, reason: $reason) {
@@ -187,6 +208,29 @@ describe('Admin API', () => {
     orders.push(order);
     const { eInvoicePreview } = await adminClient.query(PREVIEW, { orderId: order.id });
     expect(eInvoicePreview.issues.map((i: { code: string }) => i.code)).toContain('TAX_CATEGORY_MISSING');
+  });
+
+  it('does not preview or invoice orders of another channel', async () => {
+    const { createChannel } = await adminClient.query(CREATE_CHANNEL, {
+      input: {
+        code: 'other-channel',
+        token: 'other-channel-token',
+        defaultLanguageCode: 'en',
+        defaultCurrencyCode: 'EUR',
+        pricesIncludeTax: true,
+        defaultShippingZoneId: '1',
+        defaultTaxZoneId: '1',
+      },
+    });
+    expect(createChannel).toMatchObject({ id: expect.any(String) });
+    adminClient.setChannelToken('other-channel-token');
+    try {
+      expect(await errorOf(adminClient.query(PREVIEW, { orderId: orders[0].id }))).toContain('not found');
+      expect(await errorOf(adminClient.query(LAYOUT_PREVIEW, { input: { orderId: orders[0].id } }))).toContain('not found');
+      expect(await errorOf(adminClient.query(CREATE_INVOICE, { orderId: orders[0].id }))).toContain('not found');
+    } finally {
+      adminClient.setChannelToken(E2E_DEFAULT_CHANNEL_TOKEN);
+    }
   });
 
   it('voids a failed invoice with a reason, keeping its number', async () => {
