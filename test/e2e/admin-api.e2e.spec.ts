@@ -3,12 +3,12 @@ import { createTestEnvironment, E2E_DEFAULT_CHANNEL_TOKEN } from '@vendure/testi
 import gql from 'graphql-tag';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { DefaultTemplatePdfStrategy, PdfTemplateInput } from '../../src';
+import { DefaultTemplatePdfStrategy, EInvoiceModel, PdfTemplateInput } from '../../src';
 import { InvoiceRenderService } from '../../src/services/invoice-render.service';
 import { initialData } from '../fixtures/initial-data';
 import { createConfig, fixtures, usePostgres } from '../helpers';
 
-import { CREATE_INVOICE, E_INVOICE_FIELDS, InvoiceResult, placeOrder, SELLER_SETTINGS, waitForInvoices } from './helpers';
+import { CREATE_INVOICE, E_INVOICE_FIELDS, InvoiceResult, placeOrder, RETRY_INVOICE, SELLER_SETTINGS, waitForInvoices } from './helpers';
 
 /** Fails rendering while `failing` is set, to produce FAILED invoices. */
 class FlakyPdfStrategy extends DefaultTemplatePdfStrategy {
@@ -144,7 +144,12 @@ const errorOf = (p: Promise<unknown>) => p.then(() => 'no error').catch((e: Erro
 
 describe('Admin API', () => {
   const pdfStrategy = new FlakyPdfStrategy();
-  const { server, adminClient, shopClient } = createTestEnvironment(createConfig({ pdfStrategy }));
+  /** While set, the buyer name is removed, so new invoices are BLOCKED */
+  let blockBuyer = false;
+  const mapping = {
+    transformModel: (_ctx: RequestContext, model: EInvoiceModel) => (blockBuyer ? { ...model, buyer: { ...model.buyer, name: '' } } : model),
+  };
+  const { server, adminClient, shopClient } = createTestEnvironment(createConfig({ pdfStrategy, mapping }));
   const orders: { id: string; code: string }[] = [];
 
   beforeAll(async () => {
@@ -288,5 +293,17 @@ describe('Admin API', () => {
     await Promise.all([renderer.render(ctx, id), renderer.render(ctx, id)]);
     const [invoice] = await waitForInvoices(adminClient, order.id, issued);
     expect(invoice.files).toHaveLength(1);
+  });
+
+  it.runIf(usePostgres)('issues one invoice when a blocked invoice is retried twice at the same time', async () => {
+    blockBuyer = true;
+    const order = await placeOrder(shopClient, { items: [{ sku: 'BOOK-1', quantity: 1 }] });
+    const { createEInvoice } = await adminClient.query(CREATE_INVOICE, { orderId: order.id });
+    expect(createEInvoice.status).toBe('BLOCKED');
+    blockBuyer = false;
+
+    await Promise.allSettled([adminClient.query(RETRY_INVOICE, { id: createEInvoice.id }), adminClient.query(RETRY_INVOICE, { id: createEInvoice.id })]);
+    const invoices = await waitForInvoices(adminClient, order.id, issued);
+    expect(invoices.map((i) => i.type)).toEqual(['INVOICE']);
   });
 });

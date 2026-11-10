@@ -206,6 +206,9 @@ export class InvoiceService implements OnApplicationBootstrap {
     }
     const invoice = await this.connection.withTransaction(ctx, async (txCtx) => {
       await lockOrder(this.connection, txCtx, existing.orderId);
+      // A concurrent retry may have issued it meanwhile; issuing again would create a second invoice
+      const current = await this.findOne(txCtx, id);
+      if (current?.status !== 'BLOCKED') throw new UserInputError(`E-invoice ${id} is ${current?.status} and cannot be retried`);
       return this.issue(txCtx, existing.orderId, existing.reason);
     });
     await this.afterIssue(ctx, [invoice]);
