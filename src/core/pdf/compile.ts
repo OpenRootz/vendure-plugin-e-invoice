@@ -47,10 +47,10 @@ export interface PageCountRef {
   resolved: boolean;
 }
 
-export const markerId = (blockId: string, edge: 'start' | 'end') => `b:${blockId}:${edge}`;
+export const markerId = (blockKey: string, edge: 'start' | 'end') => `b:${blockKey}:${edge}`;
 
 /** An invisible node with a height of ~0 whose position pdfmake reports to `pageBreakBefore`. */
-const marker = (blockId: string, edge: 'start' | 'end'): PdfNode => ({ text: ' ', fontSize: 0.01, lineHeight: 0, id: markerId(blockId, edge) });
+const marker = (blockKey: string, edge: 'start' | 'end'): PdfNode => ({ text: ' ', fontSize: 0.01, lineHeight: 0, id: markerId(blockKey, edge) });
 
 /**
  * Compiles a v2 layout into a pdfmake document definition:
@@ -69,24 +69,24 @@ export function compileLayout(
   const pageW = toPt(size.w);
   const f = formatters(labels, model.currencyCode, model.amountDecimals);
   const accent = validColor(layout.theme.accentColor) ? layout.theme.accentColor : DEFAULT_ACCENT;
-  const byId = new Map(layout.blocks.map((b) => [b.id, b]));
+  const byId = new Map(layout.blocks.map((b) => [b.key, b]));
   const pageCountRef: PageCountRef = { value: options.pageCount ?? 1, resolved: options.pageCount !== undefined };
 
   // --- flow membership and static positions ---
   const flowMemo = new Map<string, boolean>();
   const inFlow = (b: LayoutBlock): boolean => {
-    if (flowMemo.has(b.id)) return flowMemo.get(b.id)!;
+    if (flowMemo.has(b.key)) return flowMemo.get(b.key)!;
     const target = b.anchor && byId.get(b.anchor.to);
     const result = b.overflow === 'grow' || (!!target && inFlow(target));
-    flowMemo.set(b.id, result);
+    flowMemo.set(b.key, result);
     return result;
   };
   const staticY: Record<string, number> = {};
   const yOf = (b: LayoutBlock, depth = 0): number => {
-    if (staticY[b.id] !== undefined) return staticY[b.id];
+    if (staticY[b.key] !== undefined) return staticY[b.key];
     const target = b.anchor && byId.get(b.anchor.to);
     const y = target && !inFlow(target) && depth < 60 ? yOf(target, depth + 1) + target.frame.h + b.anchor!.gap : b.frame.y;
-    staticY[b.id] = y;
+    staticY[b.key] = y;
     return y;
   };
 
@@ -94,10 +94,10 @@ export function compileLayout(
   for (const b of layout.blocks) if (b.anchor && byId.has(b.anchor.to)) follower.set(b.anchor.to, b);
   const heads = layout.blocks.filter((b) => inFlow(b) && !(b.anchor && byId.get(b.anchor.to) && inFlow(byId.get(b.anchor.to)!)));
   for (const b of layout.blocks) yOf(b);
-  heads.sort((a, b) => staticY[a.id] - staticY[b.id] || a.frame.x - b.frame.x);
+  heads.sort((a, b) => staticY[a.key] - staticY[b.key] || a.frame.x - b.frame.x);
   const chains = heads.map((head) => {
     const chain = [head];
-    for (let next = follower.get(head.id); next && chain.length <= layout.blocks.length; next = follower.get(next.id)) chain.push(next);
+    for (let next = follower.get(head.key); next && chain.length <= layout.blocks.length; next = follower.get(next.key)) chain.push(next);
     return chain;
   });
   const fixed = layout.blocks.filter((b) => !inFlow(b));
@@ -123,7 +123,7 @@ export function compileLayout(
   };
   const styled = (block: LayoutBlock, node: PdfNode): Record<string, unknown> => {
     const s = block.style ?? {};
-    const scale = options.fontScale?.[block.id] ?? 1;
+    const scale = options.fontScale?.[block.key] ?? 1;
     const fontSize = s.fontSize ?? (scale !== 1 ? layout.theme.fontSize : undefined);
     return {
       stack: [node],
@@ -140,19 +140,19 @@ export function compileLayout(
   chains.forEach((chain, chainIndex) => {
     chain.forEach((block, i) => {
       const node = render(block);
-      if (!node) empty.add(block.id);
+      if (!node) empty.add(block.key);
       let top: number;
       if (i === 0) {
-        top = chainIndex === 0 ? Math.max(0, toPt(staticY[block.id]) - contTop) : 0;
-        top += options.chainStarts?.[block.id] ?? 0;
+        top = chainIndex === 0 ? Math.max(0, toPt(staticY[block.key]) - contTop) : 0;
+        top += options.chainStarts?.[block.key] ?? 0;
       } else {
         top = node ? toPt(block.anchor!.gap) : 0;
       }
       const x = toPt(block.frame.x);
       const w = toPt(block.frame.w);
       content.push({
-        stack: [marker(block.id, 'start'), ...(node ? [styled(block, node)] : []), marker(block.id, 'end')],
-        margin: [x, top, Math.max(0, pageW - x - w), node ? (options.pads?.[block.id] ?? 0) : 0],
+        stack: [marker(block.key, 'start'), ...(node ? [styled(block, node)] : []), marker(block.key, 'end')],
+        margin: [x, top, Math.max(0, pageW - x - w), node ? (options.pads?.[block.key] ?? 0) : 0],
         ...(block.overflow === 'fixed' ? { unbreakable: true } : {}),
       });
     });
@@ -161,7 +161,7 @@ export function compileLayout(
   // --- fixed blocks in the page background ---
   const onPage = (block: LayoutBlock, page: number, count: number) =>
     block.pages === 'all' || (block.pages === 'first' && page === 1) || (block.pages === 'following' && page > 1) || (block.pages === 'last' && page === count);
-  for (const block of fixed) if (!render(block, 1, 1)) empty.add(block.id);
+  for (const block of fixed) if (!render(block, 1, 1)) empty.add(block.key);
   const background = (page: number) => {
     const count = pageCountRef.value;
     const nodes = fixed
@@ -170,8 +170,8 @@ export function compileLayout(
         const node = render(block, page, count);
         if (!node) return null;
         return {
-          absolutePosition: { x: toPt(block.frame.x), y: toPt(staticY[block.id]) },
-          columns: [{ width: toPt(block.frame.w), stack: [marker(block.id, 'start'), styled(block, node), marker(block.id, 'end')] }],
+          absolutePosition: { x: toPt(block.frame.x), y: toPt(staticY[block.key]) },
+          columns: [{ width: toPt(block.frame.w), stack: [marker(block.key, 'start'), styled(block, node), marker(block.key, 'end')] }],
         };
       })
       .filter((n) => n !== null);

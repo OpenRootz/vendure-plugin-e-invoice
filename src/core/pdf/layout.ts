@@ -66,8 +66,8 @@ export interface BlockStyle {
 }
 
 export interface LayoutBlock {
-  /** Stable and unique within the layout */
-  id: string;
+  /** Stable and unique within the layout (named `key`, as the Vendure API encodes `id` fields) */
+  key: string;
   type: BlockType;
   visible: boolean;
   pages: BlockPages;
@@ -152,21 +152,21 @@ export function defaultLayout(v1: PdfLayout = {}): PdfLayoutV2 {
     continuation: { top: 169, bottom: 339 },
     theme: { accentColor: validColor(v1.accentColor) ? v1.accentColor! : DEFAULT_ACCENT, fontSize: 9 },
     blocks: [
-      block({ id: 'logo', type: 'logo', frame: { x: 1337, y: 169, w: 564, h: 212 }, overflow: 'fixed', style: { align: 'right' } }),
-      block({ id: 'senderLine', type: 'senderLine', frame: { x: 198, y: 423, w: 878, h: 39 }, overflow: 'fixed', style: { fontSize: 7, color: '#555555' } }),
-      block({ id: 'recipient', type: 'recipient', frame: { x: 198, y: 478, w: 878, h: 370 }, overflow: 'fixed' }),
-      block({ id: 'details', type: 'details', frame: { x: 1161, y: 423, w: 741, h: 425 }, overflow: 'fixed' }),
-      block({ id: 'deliveryAddress', type: 'deliveryAddress', frame: { x: 198, y: 848, w: 1704, h: 0 } }),
-      block({ id: 'title', type: 'title', frame: { x: 198, y: 933, w: 1704, h: 0 }, anchor: { to: 'deliveryAddress', gap: 85 } }),
-      block({ id: 'introText', type: 'introText', frame: { x: 198, y: 1000, w: 1704, h: 0 }, anchor: { to: 'title', gap: 28 }, props: textProp(v1.introText) }),
-      block({ id: 'lines', type: 'lines', frame: { x: 198, y: 1100, w: 1704, h: 0 }, anchor: { to: 'introText', gap: 49 } }),
-      block({ id: 'totals', type: 'totals', frame: { x: 1055, y: 1400, w: 847, h: 0 }, anchor: { to: 'lines', gap: 35 } }),
-      block({ id: 'exemptionNotes', type: 'exemptionNotes', frame: { x: 198, y: 1600, w: 1704, h: 0 }, anchor: { to: 'totals', gap: 35 } }),
-      block({ id: 'notes', type: 'notes', frame: { x: 198, y: 1650, w: 1704, h: 0 }, anchor: { to: 'exemptionNotes', gap: 28 } }),
-      block({ id: 'payment', type: 'payment', frame: { x: 198, y: 1700, w: 1704, h: 0 }, anchor: { to: 'notes', gap: 56 } }),
-      block({ id: 'closingText', type: 'closingText', frame: { x: 198, y: 1850, w: 1704, h: 0 }, anchor: { to: 'payment', gap: 42 }, props: textProp(v1.closingText) }),
+      block({ key: 'logo', type: 'logo', frame: { x: 1337, y: 169, w: 564, h: 212 }, overflow: 'fixed', style: { align: 'right' } }),
+      block({ key: 'senderLine', type: 'senderLine', frame: { x: 198, y: 423, w: 878, h: 39 }, overflow: 'fixed', style: { fontSize: 7, color: '#555555' } }),
+      block({ key: 'recipient', type: 'recipient', frame: { x: 198, y: 478, w: 878, h: 370 }, overflow: 'fixed' }),
+      block({ key: 'details', type: 'details', frame: { x: 1161, y: 423, w: 741, h: 425 }, overflow: 'fixed' }),
+      block({ key: 'deliveryAddress', type: 'deliveryAddress', frame: { x: 198, y: 848, w: 1704, h: 0 } }),
+      block({ key: 'title', type: 'title', frame: { x: 198, y: 933, w: 1704, h: 0 }, anchor: { to: 'deliveryAddress', gap: 85 } }),
+      block({ key: 'introText', type: 'introText', frame: { x: 198, y: 1000, w: 1704, h: 0 }, anchor: { to: 'title', gap: 28 }, props: textProp(v1.introText) }),
+      block({ key: 'lines', type: 'lines', frame: { x: 198, y: 1100, w: 1704, h: 0 }, anchor: { to: 'introText', gap: 49 } }),
+      block({ key: 'totals', type: 'totals', frame: { x: 1055, y: 1400, w: 847, h: 0 }, anchor: { to: 'lines', gap: 35 } }),
+      block({ key: 'exemptionNotes', type: 'exemptionNotes', frame: { x: 198, y: 1600, w: 1704, h: 0 }, anchor: { to: 'totals', gap: 35 } }),
+      block({ key: 'notes', type: 'notes', frame: { x: 198, y: 1650, w: 1704, h: 0 }, anchor: { to: 'exemptionNotes', gap: 28 } }),
+      block({ key: 'payment', type: 'payment', frame: { x: 198, y: 1700, w: 1704, h: 0 }, anchor: { to: 'notes', gap: 56 } }),
+      block({ key: 'closingText', type: 'closingText', frame: { x: 198, y: 1850, w: 1704, h: 0 }, anchor: { to: 'payment', gap: 42 }, props: textProp(v1.closingText) }),
       block({
-        id: 'footer',
+        key: 'footer',
         type: 'footer',
         frame: { x: 198, y: 2640, w: 1704, h: 280 },
         overflow: 'fixed',
@@ -219,7 +219,7 @@ export interface LayoutIssue {
   level: 'error' | 'warning';
   code: string;
   message: string;
-  blockId?: string;
+  blockKey?: string;
 }
 
 const isInt = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v);
@@ -262,7 +262,7 @@ const ALLOWED_PROPS: Record<BlockType, Record<string, (v: unknown) => boolean>> 
  */
 export function parseLayout(input: unknown): { layout?: PdfLayoutV2; issues: LayoutIssue[] } {
   const issues: LayoutIssue[] = [];
-  const error = (code: string, message: string, blockId?: string) => issues.push({ level: 'error', code, message, blockId });
+  const error = (code: string, message: string, blockKey?: string) => issues.push({ level: 'error', code, message, blockKey });
   if (!isObj(input) || input.version !== 2) {
     error('INVALID_LAYOUT', 'The layout must be an object with version 2');
     return { issues };
@@ -297,39 +297,39 @@ export function parseLayout(input: unknown): { layout?: PdfLayoutV2; issues: Lay
   if (input.blocks.length > MAX_BLOCKS) error('TOO_MANY_BLOCKS', `A layout can have at most ${MAX_BLOCKS} blocks`);
   const ids = new Set<string>();
   for (const [i, raw] of input.blocks.entries()) {
-    const label = isObj(raw) && typeof raw.id === 'string' ? raw.id : `#${i + 1}`;
+    const label = isObj(raw) && typeof raw.key === 'string' ? raw.key : `#${i + 1}`;
     if (!isObj(raw)) {
       error('INVALID_BLOCK', `Block ${label} must be an object`);
       continue;
     }
-    const id = raw.id;
-    if (typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,40}$/.test(id)) error('INVALID_BLOCK', `Block ${label}: id must be 1–40 letters, digits, - or _`);
-    else if (ids.has(id)) error('DUPLICATE_ID', `Block id "${id}" is used twice`, id);
+    const id = raw.key;
+    if (typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,40}$/.test(id)) error('INVALID_BLOCK', `Block ${label}: key must be 1–40 letters, digits, - or _`);
+    else if (ids.has(id)) error('DUPLICATE_KEY', `Block key "${id}" is used twice`, id);
     else ids.add(id);
-    const blockId = typeof id === 'string' ? id : undefined;
+    const blockKey = typeof id === 'string' ? id : undefined;
     const type = raw.type as BlockType;
     if (!BLOCK_TYPES.includes(type)) {
-      error('UNKNOWN_BLOCK_TYPE', `Block ${label}: unknown type "${String(raw.type)}"`, blockId);
+      error('UNKNOWN_BLOCK_TYPE', `Block ${label}: unknown type "${String(raw.type)}"`, blockKey);
       continue;
     }
     for (const key of Object.keys(raw)) {
-      if (!['id', 'type', 'visible', 'pages', 'frame', 'anchor', 'overflow', 'style', 'props'].includes(key)) {
-        error('UNKNOWN_PROPERTY', `Block ${label}: unknown property "${key}"`, blockId);
+      if (!['key', 'type', 'visible', 'pages', 'frame', 'anchor', 'overflow', 'style', 'props'].includes(key)) {
+        error('UNKNOWN_PROPERTY', `Block ${label}: unknown property "${key}"`, blockKey);
       }
     }
-    if (typeof raw.visible !== 'boolean') error('INVALID_BLOCK', `Block ${label}: visible must be true or false`, blockId);
-    if (!['first', 'all', 'following', 'last'].includes(raw.pages as string)) error('INVALID_BLOCK', `Block ${label}: pages must be first, all, following or last`, blockId);
-    if (raw.overflow !== 'grow' && raw.overflow !== 'fixed') error('INVALID_BLOCK', `Block ${label}: overflow must be grow or fixed`, blockId);
+    if (typeof raw.visible !== 'boolean') error('INVALID_BLOCK', `Block ${label}: visible must be true or false`, blockKey);
+    if (!['first', 'all', 'following', 'last'].includes(raw.pages as string)) error('INVALID_BLOCK', `Block ${label}: pages must be first, all, following or last`, blockKey);
+    if (raw.overflow !== 'grow' && raw.overflow !== 'fixed') error('INVALID_BLOCK', `Block ${label}: overflow must be grow or fixed`, blockKey);
     const f = raw.frame;
     if (!isObj(f) || ![f.x, f.y, f.w, f.h].every(isInt) || (f.w as number) < 1 || (f.h as number) < 0 || (f.x as number) < -1000 || (f.y as number) < -1000 || (f.x as number) > 5000 || (f.y as number) > 5000 || (f.w as number) > 5000 || (f.h as number) > 5000) {
-      error('INVALID_FRAME', `Block ${label}: frame must have integer x, y, w (≥ 1) and h (≥ 0) in 0.1 mm`, blockId);
+      error('INVALID_FRAME', `Block ${label}: frame must have integer x, y, w (≥ 1) and h (≥ 0) in 0.1 mm`, blockKey);
     } else if ((raw.overflow === 'fixed' && (f.h as number) < 1)) {
-      error('INVALID_FRAME', `Block ${label}: a fixed block needs a height`, blockId);
+      error('INVALID_FRAME', `Block ${label}: a fixed block needs a height`, blockKey);
     }
     if (raw.anchor !== undefined) {
       const a = raw.anchor;
       if (!isObj(a) || typeof a.to !== 'string' || !isInt(a.gap) || (a.gap as number) < 0 || (a.gap as number) > 3000) {
-        error('INVALID_ANCHOR', `Block ${label}: anchor must be { to: block id, gap: integer ≥ 0 }`, blockId);
+        error('INVALID_ANCHOR', `Block ${label}: anchor must be { to: block key, gap: integer ≥ 0 }`, blockKey);
       }
     }
     if (raw.style !== undefined) {
@@ -341,17 +341,17 @@ export function parseLayout(input: unknown): { layout?: PdfLayoutV2; issues: Lay
         (s.bold === undefined || typeof s.bold === 'boolean') &&
         (s.align === undefined || ['left', 'center', 'right'].includes(s.align as string)) &&
         (s.color === undefined || validColor(s.color));
-      if (!ok) error('INVALID_STYLE', `Block ${label}: style has invalid values (fontSize in pt, steps of 0.5; align left/center/right; color #rrggbb)`, blockId);
+      if (!ok) error('INVALID_STYLE', `Block ${label}: style has invalid values (fontSize in pt, steps of 0.5; align left/center/right; color #rrggbb)`, blockKey);
     }
     if (raw.props !== undefined) {
-      if (!isObj(raw.props)) error('INVALID_PROPS', `Block ${label}: props must be an object`, blockId);
+      if (!isObj(raw.props)) error('INVALID_PROPS', `Block ${label}: props must be an object`, blockKey);
       else {
         for (const [key, value] of Object.entries(raw.props)) {
           const check = ALLOWED_PROPS[type][key];
           if (value === undefined || value === null) continue;
-          if (!check) error('UNKNOWN_PROPERTY', `Block ${label}: unknown prop "${key}" for ${type}`, blockId);
-          else if (!check(value)) error('INVALID_PROPS', `Block ${label}: invalid value for prop "${key}"`, blockId);
-          if (typeof value === 'string' && value.length > MAX_TEXT) error('TEXT_TOO_LONG', `Block ${label}: ${key} is longer than ${MAX_TEXT} characters`, blockId);
+          if (!check) error('UNKNOWN_PROPERTY', `Block ${label}: unknown prop "${key}" for ${type}`, blockKey);
+          else if (!check(value)) error('INVALID_PROPS', `Block ${label}: invalid value for prop "${key}"`, blockKey);
+          if (typeof value === 'string' && value.length > MAX_TEXT) error('TEXT_TOO_LONG', `Block ${label}: ${key} is longer than ${MAX_TEXT} characters`, blockKey);
         }
       }
     }
@@ -366,37 +366,37 @@ export function parseLayout(input: unknown): { layout?: PdfLayoutV2; issues: Lay
 /** Anchors to missing blocks, to themselves, cycles, and two blocks anchored to the same block. */
 export function checkAnchors(layout: PdfLayoutV2): LayoutIssue[] {
   const issues: LayoutIssue[] = [];
-  const byId = new Map(layout.blocks.map((b) => [b.id, b]));
+  const byId = new Map(layout.blocks.map((b) => [b.key, b]));
   const anchoredTo = new Map<string, string>();
   for (const b of layout.blocks) {
     if (!b.anchor) continue;
-    if (b.anchor.to === b.id) issues.push({ level: 'error', code: 'ANCHOR_CYCLE', message: `Block ${b.id} is anchored to itself`, blockId: b.id });
-    else if (!byId.has(b.anchor.to)) issues.push({ level: 'error', code: 'ANCHOR_MISSING', message: `Block ${b.id} is anchored to the missing block "${b.anchor.to}"`, blockId: b.id });
+    if (b.anchor.to === b.key) issues.push({ level: 'error', code: 'ANCHOR_CYCLE', message: `Block ${b.key} is anchored to itself`, blockKey: b.key });
+    else if (!byId.has(b.anchor.to)) issues.push({ level: 'error', code: 'ANCHOR_MISSING', message: `Block ${b.key} is anchored to the missing block "${b.anchor.to}"`, blockKey: b.key });
     else if (anchoredTo.has(b.anchor.to)) {
       issues.push({
         level: 'error',
         code: 'ANCHOR_BRANCH',
-        message: `Blocks ${anchoredTo.get(b.anchor.to)} and ${b.id} are both anchored to ${b.anchor.to}; only one block can follow another`,
-        blockId: b.id,
+        message: `Blocks ${anchoredTo.get(b.anchor.to)} and ${b.key} are both anchored to ${b.anchor.to}; only one block can follow another`,
+        blockKey: b.key,
       });
-    } else anchoredTo.set(b.anchor.to, b.id);
+    } else anchoredTo.set(b.anchor.to, b.key);
   }
   const cycles = new Set<string>();
   for (const b of layout.blocks) {
     const path: string[] = [];
     let cur: LayoutBlock | undefined = b;
     while (cur?.anchor && byId.has(cur.anchor.to) && path.length <= layout.blocks.length) {
-      const at = path.indexOf(cur.id);
+      const at = path.indexOf(cur.key);
       if (at >= 0) {
         const members = path.slice(at);
         const key = [...members].sort().join(',');
         if (!cycles.has(key)) {
           cycles.add(key);
-          issues.push({ level: 'error', code: 'ANCHOR_CYCLE', message: `The anchors of blocks ${members.join(', ')} form a cycle`, blockId: members[0] });
+          issues.push({ level: 'error', code: 'ANCHOR_CYCLE', message: `The anchors of blocks ${members.join(', ')} form a cycle`, blockKey: members[0] });
         }
         break;
       }
-      path.push(cur.id);
+      path.push(cur.key);
       cur = byId.get(cur.anchor.to);
     }
   }
@@ -414,7 +414,7 @@ export function layoutPreset(preset: LayoutPreset, theme?: Partial<PdfLayoutV2['
   const layout = defaultLayout();
   if (theme) layout.theme = { ...layout.theme, ...theme };
   const set = (id: string, change: Partial<LayoutBlock>) => {
-    const b = layout.blocks.find((x) => x.id === id)!;
+    const b = layout.blocks.find((x) => x.key === id)!;
     Object.assign(b, change);
   };
   if (preset === 'din5008A' || preset === 'din5008B') {

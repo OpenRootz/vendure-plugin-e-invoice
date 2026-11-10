@@ -1,7 +1,9 @@
+import { TransactionalConnection } from '@vendure/core';
 import { createTestEnvironment } from '@vendure/testing';
 import gql from 'graphql-tag';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { EInvoiceChannelSettings } from '../../src';
 import { initialData } from '../fixtures/initial-data';
 import { createConfig, fixtures } from '../helpers';
 
@@ -17,7 +19,54 @@ const LAYOUT_PREVIEW = gql`
         message
         path
       }
+      blocks {
+        key
+        page
+        x
+        y
+        w
+        h
+        overflowBy
+      }
+      layoutIssues {
+        level
+        code
+        message
+        blockKey
+      }
     }
+  }
+`;
+
+const LAYOUT = gql`
+  query {
+    eInvoiceChannelSettings {
+      layout {
+        logoAssetId
+        accentColor
+        introText
+        footerText
+        document
+      }
+    }
+  }
+`;
+
+const SAVE_LAYOUT = gql`
+  mutation ($input: UpdateEInvoiceChannelSettingsInput!) {
+    updateEInvoiceChannelSettings(input: $input) {
+      layout {
+        accentColor
+        introText
+        document
+      }
+    }
+  }
+`;
+
+const DEFAULT_LAYOUT = gql`
+  query ($preset: EInvoiceLayoutPreset) {
+    eInvoiceDefaultLayout(preset: $preset)
   }
 `;
 
@@ -113,9 +162,54 @@ describe('Layout preview', () => {
 
   it('rejects texts longer than 2000 characters on preview and on save', async () => {
     const layout = { introText: 'x'.repeat(2001) };
-    expect(await errorOf(adminClient.query(LAYOUT_PREVIEW, { input: { layout } }))).toContain('longer than 2000');
+    const { eInvoiceLayoutPreview } = await adminClient.query(LAYOUT_PREVIEW, { input: { layout } });
+    expect(eInvoiceLayoutPreview.pdf).toBeNull();
+    expect(eInvoiceLayoutPreview.layoutIssues[0].message).toContain('longer than 2000');
     expect(await errorOf(adminClient.query(UPDATE_SETTINGS, { input: { layout } }))).toContain('longer than 2000');
-    expect(await errorOf(adminClient.query(LAYOUT_PREVIEW, { input: { layout: { introText: 'x'.repeat(2000) } } }))).toBe('no error');
+    const ok = await adminClient.query(LAYOUT_PREVIEW, { input: { layout: { introText: 'x'.repeat(2000) } } });
+    expect(ok.eInvoiceLayoutPreview.pdf).toBeTruthy();
+  });
+
+  it('returns where the blocks ended up and the layout issues', async () => {
+    const { eInvoiceDefaultLayout: document } = await adminClient.query(DEFAULT_LAYOUT);
+    const { eInvoiceLayoutPreview } = await adminClient.query(LAYOUT_PREVIEW, { input: { layout: { document } } });
+    expect(eInvoiceLayoutPreview.layoutIssues).toEqual([]);
+    const ids = eInvoiceLayoutPreview.blocks.map((b: { key: string }) => b.key);
+    expect(ids).toEqual(expect.arrayContaining(['recipient', 'details', 'title', 'lines', 'totals', 'footer']));
+    expect(eInvoiceLayoutPreview.blocks.find((b: { key: string }) => b.key === 'recipient')).toMatchObject({ page: 1, x: 198, y: 478 });
+
+    // a too small address field: clipped in the worst case (error), fitted in the preview of the sample
+    const small = { ...document, blocks: document.blocks.map((b: { key: string }) => (b.key === 'recipient' ? { ...b, frame: { x: 198, y: 478, w: 878, h: 120 } } : b)) };
+    const clipped = (await adminClient.query(LAYOUT_PREVIEW, { input: { layout: { document: small } } })).eInvoiceLayoutPreview;
+    expect(clipped.pdf).toBeTruthy();
+    expect(clipped.layoutIssues).toEqual([expect.objectContaining({ level: 'error', code: 'CLIPPED', blockKey: 'recipient' })]);
+    expect(await errorOf(adminClient.query(SAVE_LAYOUT, { input: { layout: { document: small } } }))).toContain('does not fit into its frame');
+  });
+
+  it('saves layout documents and rejects invalid ones', async () => {
+    const { eInvoiceDefaultLayout: document } = await adminClient.query(DEFAULT_LAYOUT, { preset: 'DIN_5008_B' });
+    expect(document.windowEnvelope).toBe('B');
+    const { updateEInvoiceChannelSettings } = await adminClient.query(SAVE_LAYOUT, { input: { layout: { document, introText: 'Hallo' } } });
+    expect(updateEInvoiceChannelSettings.layout).toMatchObject({ introText: 'Hallo', accentColor: '#333333', document: { windowEnvelope: 'B' } });
+
+    const hidden = { ...document, blocks: document.blocks.map((b: { type: string }) => (b.type === 'totals' ? { ...b, visible: false } : b)) };
+    expect(await errorOf(adminClient.query(SAVE_LAYOUT, { input: { layout: { document: hidden } } }))).toContain('No visible block prints');
+    const broken = { ...document, blocks: [...document.blocks, { ...document.blocks[0] }] };
+    expect(await errorOf(adminClient.query(SAVE_LAYOUT, { input: { layout: { document: broken } } }))).toContain('is used twice');
+    expect((await adminClient.query(LAYOUT)).eInvoiceChannelSettings.layout.document.windowEnvelope).toBe('B');
+  });
+
+  it('converts v1 layouts when they are read', async () => {
+    const connection = server.app.get(TransactionalConnection);
+    await connection.rawConnection
+      .getRepository(EInvoiceChannelSettings)
+      .update({ channelId: 1 }, { layout: { accentColor: '#1a5fb4', introText: 'Alt', footerText: 'Fuß' } as never });
+    const { layout } = (await adminClient.query(LAYOUT)).eInvoiceChannelSettings;
+    expect(layout).toMatchObject({ accentColor: '#1a5fb4', introText: 'Alt', footerText: 'Fuß', document: { version: 2 } });
+    const footer = layout.document.blocks.find((b: { key: string }) => b.key === 'footer');
+    expect(footer.props).toMatchObject({ text: 'Fuß', pageNumber: true });
+    const { eInvoiceLayoutPreview } = await adminClient.query(LAYOUT_PREVIEW, { input: {} });
+    expect(eInvoiceLayoutPreview.pdf).toBeTruthy();
   });
 
   it('requires the ReadEInvoice permission', async () => {

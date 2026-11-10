@@ -5,7 +5,13 @@ import { Injector, Logger, PluginCommonModule, Type, VendurePlugin } from '@vend
 import { EInvoiceDownloadController } from './api/download.controller';
 import { adminApiExtensions, shopApiExtensions } from './api/schema';
 import { EInvoiceShopEntityResolver, EInvoiceShopOrderResolver } from './api/shop.resolver';
-import { EInvoiceAdminResolver, EInvoiceEntityResolver, EInvoiceFileResolver, EInvoiceOrderResolver } from './api/admin.resolver';
+import {
+  EInvoiceAdminResolver,
+  EInvoiceEntityResolver,
+  EInvoiceFileResolver,
+  EInvoiceLayoutResolver,
+  EInvoiceOrderResolver,
+} from './api/admin.resolver';
 import { eInvoicePermission, loggerCtx, PLUGIN_INIT_OPTIONS } from './constants';
 import { customFields } from './custom-fields';
 import {
@@ -44,7 +50,7 @@ import { LayoutPreviewService } from './services/layout-preview.service';
   controllers: [EInvoiceDownloadController],
   adminApiExtensions: {
     schema: adminApiExtensions,
-    resolvers: [EInvoiceAdminResolver, EInvoiceEntityResolver, EInvoiceFileResolver, EInvoiceOrderResolver],
+    resolvers: [EInvoiceAdminResolver, EInvoiceEntityResolver, EInvoiceFileResolver, EInvoiceOrderResolver, EInvoiceLayoutResolver],
   },
   shopApiExtensions: {
     schema: shopApiExtensions,

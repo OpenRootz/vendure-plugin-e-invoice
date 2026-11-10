@@ -52,7 +52,7 @@ const labels = pdfLabels('de');
 const measure = (layout: PdfLayoutV2, model: EInvoiceModel, fit = false) => layoutDocument(layout, { model, labels }, fonts, { fit });
 const edit = (layout: PdfLayoutV2, id: string, change: Partial<LayoutBlock>): PdfLayoutV2 => ({
   ...layout,
-  blocks: layout.blocks.map((b) => (b.id === id ? { ...b, ...change } : b)),
+  blocks: layout.blocks.map((b) => (b.key === id ? { ...b, ...change } : b)),
 });
 const codes = (issues: { code: string }[]) => issues.map((i) => i.code);
 
@@ -67,7 +67,7 @@ describe('layout model', () => {
     const base = defaultLayout();
     const errors = (layout: unknown) => codes(parseLayout(layout).issues);
     expect(errors({ ...base, version: 1 })).toEqual(['INVALID_LAYOUT']);
-    expect(errors({ ...base, blocks: [...base.blocks, { ...base.blocks[0] }] })).toEqual(['DUPLICATE_ID']);
+    expect(errors({ ...base, blocks: [...base.blocks, { ...base.blocks[0] }] })).toEqual(['DUPLICATE_KEY']);
     expect(errors(edit(base, 'logo', { type: 'banner' as never }))).toEqual(['UNKNOWN_BLOCK_TYPE']);
     expect(errors(edit(base, 'logo', { frame: { x: 1.5, y: 0, w: 10, h: 10 } }))).toEqual(['INVALID_FRAME']);
     expect(errors(edit(base, 'title', { anchor: { to: 'nope', gap: 0 } }))).toEqual(['ANCHOR_MISSING']);
@@ -76,7 +76,7 @@ describe('layout model', () => {
     expect(errors(edit(base, 'introText', { props: { text: 'x'.repeat(2001) } }))).toEqual(['TEXT_TOO_LONG']);
     expect(errors(edit(base, 'introText', { props: { colour: 'red' } }))).toEqual(['UNKNOWN_PROPERTY']);
     expect(errors(edit(base, 'logo', { style: { color: 'red' } }))).toEqual(['INVALID_STYLE']);
-    expect(errors({ ...base, blocks: Array.from({ length: 51 }, (_, i) => ({ ...base.blocks[0], id: `b${i}` })) })).toContain('TOO_MANY_BLOCKS');
+    expect(errors({ ...base, blocks: Array.from({ length: 51 }, (_, i) => ({ ...base.blocks[0], key: `b${i}` })) })).toContain('TOO_MANY_BLOCKS');
   });
 
   it('migrates v1 settings and keeps the v1 fields as shortcuts', () => {
@@ -116,16 +116,16 @@ describe('layout checks', () => {
     const layout = edit(defaultLayout(), 'recipient', { frame: { x: 198, y: 478, w: 878, h: 200 } });
     const result = await measure(layout, model);
     const issues = checkLayout(layout, result.measurement, model);
-    expect(issues).toEqual([expect.objectContaining({ level: 'error', code: 'CLIPPED', blockId: 'recipient' })]);
+    expect(issues).toEqual([expect.objectContaining({ level: 'error', code: 'CLIPPED', blockKey: 'recipient' })]);
   });
 
   it('shrinks the font of a block that does not fit at render time', async () => {
     const layout = edit(defaultLayout(), 'recipient', { frame: { x: 198, y: 478, w: 878, h: 300 } });
     const strict = await measure(layout, model);
-    expect(strict.measurement.boxes.find((b) => b.id === 'recipient')!.overflowBy).toBeGreaterThan(0);
+    expect(strict.measurement.boxes.find((b) => b.key === 'recipient')!.overflowBy).toBeGreaterThan(0);
     const fitted = await measure(layout, model, true);
     expect(fitted.options.fontScale!.recipient).toBeLessThan(1);
-    expect(fitted.measurement.boxes.find((b) => b.id === 'recipient')!.overflowBy).toBeUndefined();
+    expect(fitted.measurement.boxes.find((b) => b.key === 'recipient')!.overflowBy).toBeUndefined();
     expect(fitted.issues).toEqual([]);
 
     // below 6 pt it is printed beyond the frame instead (never clipped) and reported
@@ -177,7 +177,7 @@ describe('layout engine', () => {
     const old = await probeLayout(legacy, fonts);
     const result = await measure(layoutFromV1(v1), model);
     const top = (id: string) => old.positions.find((p) => p.id === `b:${id}:start`)!.top;
-    const box = (id: string) => result.measurement.boxes.find((b) => b.id === id)!;
+    const box = (id: string) => result.measurement.boxes.find((b) => b.key === id)!;
     for (const id of names.slice(2)) {
       expect(toPt(box(id).y) - toPt(box('title').y), id).toBeCloseTo(top(id) - top('title'), -0.1);
       expect(Math.abs(toPt(box(id).y - box('title').y) - (top(id) - top('title'))), id).toBeLessThan(1);
@@ -191,7 +191,7 @@ describe('layout engine', () => {
     let layout = edit(defaultLayout(), 'introText', { props: { text: 'Kurz' }, frame: { x: 198, y: 0, w: 1704, h: 300 } });
     layout = edit(layout, 'image', {});
     const result = await measure(layout, model);
-    const box = (id: string) => result.measurement.boxes.find((b) => b.id === id)!;
+    const box = (id: string) => result.measurement.boxes.find((b) => b.key === id)!;
     expect(box('introText').h).toBe(300);
     // the line table starts after the minimum height + gap
     expect(box('lines').y - (box('introText').y + 300)).toBeGreaterThanOrEqual(48);
@@ -203,7 +203,7 @@ describe('layout engine', () => {
     let layout = edit(defaultLayout(), 'closingText', { anchor: undefined, frame: { x: 198, y: 2560, w: 1704, h: 0 }, props: { text: 'Gruß' } });
     layout = edit(layout, 'exemptionNotes', {});
     const result = await measure(layout, model);
-    const closing = result.measurement.boxes.find((b) => b.id === 'closingText')!;
+    const closing = result.measurement.boxes.find((b) => b.key === 'closingText')!;
     expect(Math.abs(closing.y - 2560)).toBeLessThanOrEqual(1);
     expect(result.issues).toEqual([]);
 
@@ -217,7 +217,7 @@ describe('layout engine', () => {
     const b = await measure(defaultLayout(), model);
     expect(a.measurement).toEqual(b.measurement);
     expect(a.measurement.pageCount).toBeGreaterThan(1);
-    expect(a.measurement.boxes.filter((x) => x.id === 'footer').map((x) => x.page)).toEqual([1, 2, 3].slice(0, a.measurement.pageCount));
+    expect(a.measurement.boxes.filter((x) => x.key === 'footer').map((x) => x.page)).toEqual([1, 2, 3].slice(0, a.measurement.pageCount));
   });
 });
 
@@ -238,7 +238,7 @@ describe('exotic layouts', () => {
       continuation: { top: 400, bottom: 339 },
       blocks: [
         ...defaultLayout().blocks,
-        { id: 'followHeader', type: 'customText', visible: true, pages: 'following', overflow: 'fixed', frame: { x: 198, y: 169, w: 1704, h: 150 }, props: { text: 'Rechnung {number} vom {issueDate}' }, style: { bold: true } },
+        { key: 'followHeader', type: 'customText', visible: true, pages: 'following', overflow: 'fixed', frame: { x: 198, y: 169, w: 1704, h: 150 }, props: { text: 'Rechnung {number} vom {issueDate}' }, style: { bold: true } },
       ],
     },
   };

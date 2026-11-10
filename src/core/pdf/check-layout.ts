@@ -53,7 +53,7 @@ export function blockCoverage(block: LayoutBlock): MandatoryField[] {
 /** Visible blocks per mandatory field. */
 export function layoutCoverage(layout: PdfLayoutV2): Record<MandatoryField, string[]> {
   const out = Object.fromEntries(MANDATORY_FIELDS.map((f) => [f.field, [] as string[]])) as Record<MandatoryField, string[]>;
-  for (const b of layout.blocks.filter((x) => x.visible)) for (const f of blockCoverage(b)) out[f].push(b.id);
+  for (const b of layout.blocks.filter((x) => x.visible)) for (const f of blockCoverage(b)) out[f].push(b.key);
   return out;
 }
 
@@ -82,7 +82,7 @@ export interface CheckLayoutOptions {
  */
 export function checkLayout(layout: PdfLayoutV2, measurement?: LayoutMeasurement, model?: EInvoiceModel, options: CheckLayoutOptions = {}): LayoutIssue[] {
   const issues: LayoutIssue[] = [];
-  const add = (level: LayoutIssue['level'], code: string, message: string, blockId?: string) => issues.push({ level, code, message, blockId });
+  const add = (level: LayoutIssue['level'], code: string, message: string, blockKey?: string) => issues.push({ level, code, message, blockKey });
   const page = PAGE_SIZES[layout.page.size];
   const visible = layout.blocks.filter((b) => b.visible);
 
@@ -99,12 +99,12 @@ export function checkLayout(layout: PdfLayoutV2, measurement?: LayoutMeasurement
     const { x, y, w, h } = b.frame;
     const anchored = !!b.anchor;
     if (x < 0 || x + w > page.w || (!anchored && (y < 0 || y + h > page.h))) {
-      add('error', 'OUT_OF_PAGE', `Block ${b.id} is (partly) outside the page`, b.id);
+      add('error', 'OUT_OF_PAGE', `Block ${b.key} is (partly) outside the page`, b.key);
     } else if (x < 50 || x + w > page.w - 50 || (!anchored && (y < 50 || y + h > page.h - 50))) {
-      add('warning', 'UNPRINTABLE_AREA', `Block ${b.id} reaches into the 5 mm border most printers cannot print`, b.id);
+      add('warning', 'UNPRINTABLE_AREA', `Block ${b.key} reaches into the 5 mm border most printers cannot print`, b.key);
     }
     if (b.overflow === 'grow' && !anchored && y < layout.continuation.top) {
-      add('warning', 'FLOW_ABOVE_TOP', `Block ${b.id} grows, so it cannot start above the flow area (${layout.continuation.top / 10} mm)`, b.id);
+      add('warning', 'FLOW_ABOVE_TOP', `Block ${b.key} grows, so it cannot start above the flow area (${layout.continuation.top / 10} mm)`, b.key);
     }
   }
 
@@ -116,7 +116,7 @@ export function checkLayout(layout: PdfLayoutV2, measurement?: LayoutMeasurement
       const sideBySide = a.frame.x + a.frame.w <= b.frame.x || b.frame.x + b.frame.w <= a.frame.x;
       const band = Math.max(a.frame.h, b.frame.h, 50);
       if (sideBySide && Math.abs(a.frame.y - b.frame.y) < band) {
-        add('error', 'PARALLEL_GROWTH', `Blocks ${a.id} and ${b.id} both grow and stand side by side; make one of them fixed or anchor it below the other`, b.id);
+        add('error', 'PARALLEL_GROWTH', `Blocks ${a.key} and ${b.key} both grow and stand side by side; make one of them fixed or anchor it below the other`, b.key);
       }
     }
   }
@@ -124,19 +124,19 @@ export function checkLayout(layout: PdfLayoutV2, measurement?: LayoutMeasurement
   // --- measured: clipping and overlap ---
   if (measurement) {
     for (const box of measurement.boxes) {
-      if (box.overflowBy) add('error', 'CLIPPED', `The content of block ${box.id} does not fit into its frame (${(box.overflowBy / 10).toFixed(1)} mm too tall)`, box.id);
+      if (box.overflowBy) add('error', 'CLIPPED', `The content of block ${box.key} does not fit into its frame (${(box.overflowBy / 10).toFixed(1)} mm too tall)`, box.key);
     }
-    const boxes = measurement.boxes.filter((bx) => visible.some((b) => b.id === bx.id) && bx.h > 0);
+    const boxes = measurement.boxes.filter((bx) => visible.some((b) => b.key === bx.key) && bx.h > 0);
     const reported = new Set<string>();
     for (let i = 0; i < boxes.length; i++) {
       for (let j = i + 1; j < boxes.length; j++) {
         const [a, b] = [boxes[i], boxes[j]];
-        if (a.page !== b.page || a.id === b.id) continue;
+        if (a.page !== b.page || a.key === b.key) continue;
         const overlap = a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
-        const key = [a.id, b.id].sort().join('|');
+        const key = [a.key, b.key].sort().join('|');
         if (overlap && !reported.has(key)) {
           reported.add(key);
-          add('warning', 'OVERLAP', `Blocks ${a.id} and ${b.id} overlap on page ${a.page}`, b.id);
+          add('warning', 'OVERLAP', `Blocks ${a.key} and ${b.key} overlap on page ${a.page}`, b.key);
         }
       }
     }
@@ -148,7 +148,7 @@ export function checkLayout(layout: PdfLayoutV2, measurement?: LayoutMeasurement
     for (const b of visible.filter((x) => x.type === 'recipient' || x.type === 'senderLine')) {
       const { x, y, w, h } = b.frame;
       if (b.anchor || x < win.x || y < win.y || x + w > win.x + win.w || y + h > win.y + win.h) {
-        add('warning', 'NOT_IN_WINDOW', `Block ${b.id} is not inside the window of a DIN 5008 Form ${layout.windowEnvelope} envelope`, b.id);
+        add('warning', 'NOT_IN_WINDOW', `Block ${b.key} is not inside the window of a DIN 5008 Form ${layout.windowEnvelope} envelope`, b.key);
       }
     }
   }
@@ -156,9 +156,9 @@ export function checkLayout(layout: PdfLayoutV2, measurement?: LayoutMeasurement
   // --- readability ---
   if (layout.theme.fontSize < MIN_FONT_SIZE) add('warning', 'SMALL_FONT', `The base font size is below ${MIN_FONT_SIZE} pt`);
   for (const b of visible) {
-    if (b.style?.fontSize !== undefined && b.style.fontSize < MIN_FONT_SIZE) add('warning', 'SMALL_FONT', `Block ${b.id} uses a font below ${MIN_FONT_SIZE} pt`, b.id);
+    if (b.style?.fontSize !== undefined && b.style.fontSize < MIN_FONT_SIZE) add('warning', 'SMALL_FONT', `Block ${b.key} uses a font below ${MIN_FONT_SIZE} pt`, b.key);
     if (b.style?.color && validColor(b.style.color) && contrastOnWhite(b.style.color) < 3) {
-      add('warning', 'LOW_CONTRAST', `The text color of block ${b.id} has too little contrast on white`, b.id);
+      add('warning', 'LOW_CONTRAST', `The text color of block ${b.key} has too little contrast on white`, b.key);
     }
   }
   if (validColor(layout.theme.accentColor) && contrastOnWhite(layout.theme.accentColor) < 3) {

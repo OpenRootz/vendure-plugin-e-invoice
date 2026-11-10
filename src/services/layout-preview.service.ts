@@ -2,7 +2,23 @@ import { Inject, Injectable } from '@nestjs/common';
 import { ID, Order, RequestContext, TransactionalConnection, UserInputError } from '@vendure/core';
 
 import { PLUGIN_INIT_OPTIONS } from '../constants';
-import { calculate, checkModel, EInvoiceModel, pdfLabels, SampleKind, sampleModel } from '../core';
+import {
+  BlockBox,
+  calculate,
+  checkLayout,
+  checkModel,
+  defaultFonts,
+  defaultLayout,
+  EInvoiceModel,
+  layoutDocument,
+  LayoutIssue,
+  parseLayout,
+  patchLayout,
+  PdfLayout,
+  pdfLabels,
+  SampleKind,
+  sampleModel,
+} from '../core';
 import { LayoutSettings, PaymentSettings, SellerSettings } from '../entities';
 import { OrderModelMapper } from '../mapping/order-model.mapper';
 import { ResolvedEInvoicePluginOptions } from '../options';
@@ -12,9 +28,16 @@ import { SellerData } from '../strategies/types';
 import { ChannelSettingsService, compact, SetupIssue } from './channel-settings.service';
 import { InvoiceRenderService } from './invoice-render.service';
 
+/** The layout as the API takes it: the document plus the v1 fields as shortcuts that patch it. */
+export interface LayoutInput extends PdfLayout {
+  logoAssetId?: ID | null;
+  /** Layout v2; omitted = the default layout */
+  document?: unknown;
+}
+
 export interface LayoutPreviewInput {
   /** Unsaved layout; omitted = saved layout */
-  layout?: LayoutSettings | null;
+  layout?: LayoutInput | null;
   /** Unsaved seller data (settings page); omitted = saved */
   seller?: SellerSettings | null;
   payment?: PaymentSettings | null;
@@ -29,6 +52,10 @@ export interface LayoutPreview {
   pdf: string | null;
   pageCount: number;
   issues: SetupIssue[];
+  /** Where every block ended up (0.1 mm) */
+  blocks: BlockBox[];
+  /** Problems of the layout itself; errors block saving */
+  layoutIssues: LayoutIssue[];
 }
 
 /** Renders at most this many previews at the same time per process; the rest wait. */
@@ -53,11 +80,18 @@ export class LayoutPreviewService {
 
   async preview(ctx: RequestContext, input: LayoutPreviewInput): Promise<LayoutPreview> {
     const saved = await this.settings.get(ctx);
-    const layout = input.layout ? compact(input.layout) : saved.layout;
-    await this.settings.assertValidLayout(ctx, layout);
     const sellerSettings = input.seller ? compact(input.seller) : saved.seller;
     const paymentSettings = input.payment ? compact(input.payment) : saved.payment;
     const issues: SetupIssue[] = [];
+    const empty = { pdf: null, pageCount: 0, blocks: [] };
+
+    let layout: LayoutSettings = saved.layout;
+    if (input.layout) {
+      const resolved = resolveLayoutInput(input.layout);
+      if (!resolved.layout) return { ...empty, issues, layoutIssues: resolved.issues };
+      layout = resolved.layout;
+    }
+    await this.settings.assertValidLayout(ctx, layout);
 
     let model: EInvoiceModel;
     if (input.orderId) {
@@ -65,24 +99,14 @@ export class LayoutPreviewService {
       if (!order) throw new UserInputError(`Order ${input.orderId} not found`);
       const mapped = await this.mapper.toModel(ctx, order);
       if (!mapped) {
-        return { pdf: null, pageCount: 0, issues: [{ code: 'SELLER_INCOMPLETE', message: 'E-invoicing is not set up for this channel (no seller data)' }] };
+        return { ...empty, layoutIssues: [], issues: [{ code: 'SELLER_INCOMPLETE', message: 'E-invoicing is not set up for this channel (no seller data)' }] };
       }
       model = mapped.model;
       if (input.seller && this.defaultSellerStrategy()) model.seller = sellerFromSettings(sellerSettings);
       model.totals = calculate(model, { expectedTotalWithTax: order.totalWithTax, fallbackThreshold: this.options.roundingFallbackThreshold });
     } else {
-      const language = input.language || ctx.channel.defaultLanguageCode;
       const seller = await this.sampleSeller(ctx, sellerSettings, paymentSettings, issues);
-      model = sampleModel(input.sample ?? 'b2b-net', {
-        seller: seller.seller,
-        bank: seller.bank,
-        paymentTerms: seller.paymentTerms,
-        paymentTermDays: seller.paymentTermDays,
-        number: pdfLabels(language, this.options.pdf.translations).draft,
-        language,
-        currencyCode: ctx.channel.defaultCurrencyCode,
-        issueDate: this.mapper.today(),
-      });
+      model = this.sample(ctx, input.sample ?? 'b2b-net', seller, input.language);
     }
     if (input.language) model.language = input.language;
     model.number = pdfLabels(model.language, this.options.pdf.translations).draft;
@@ -90,16 +114,74 @@ export class LayoutPreviewService {
     issues.push(...checkModel(model, ['zugferd']));
 
     try {
-      const rendered = await this.limited(() => this.renderer.renderPdfDetailed(ctx, model, { layout, enforceLogoLimit: true }));
+      const result = await this.limited(async () => {
+        const rendered = await this.renderer.renderPdfDetailed(ctx, model, { layout, enforceLogoLimit: true });
+        const saveIssues = await this.checkLayout(ctx, layout, sellerSettings, paymentSettings, input.language);
+        return { rendered, saveIssues };
+      });
+      const { rendered, saveIssues } = result;
+      const current = rendered.layout
+        ? checkLayout(layout, rendered.layout.measurement, model, { fonts: this.fontNames() }).filter((i) => i.level === 'warning')
+        : [];
       return {
         pdf: `data:application/pdf;base64,${rendered.pdf.toString('base64')}`,
         pageCount: rendered.pageCount,
         issues: [...issues, ...rendered.issues],
+        blocks: rendered.layout?.measurement.boxes ?? [],
+        layoutIssues: dedupe([...saveIssues.filter((i) => i.level === 'error'), ...current, ...(rendered.layout?.issues ?? [])]),
       };
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
-      return { pdf: null, pageCount: 0, issues: [...issues, { code: 'RENDER_FAILED', message }] };
+      return { ...empty, issues: [...issues, { code: 'RENDER_FAILED', message }], layoutIssues: [] };
     }
+  }
+
+  /**
+   * Resolves the layout input and validates it completely: structure, texts and images, and the layout checks
+   * against the worst-case sample (content coverage, clipping, …). Throws a `UserInputError` listing the errors.
+   */
+  async prepareLayout(ctx: RequestContext, input: LayoutInput, seller?: SellerSettings | null, payment?: PaymentSettings | null): Promise<LayoutSettings> {
+    const resolved = resolveLayoutInput(input);
+    const fail = (issues: LayoutIssue[]) => {
+      throw new UserInputError(`Invalid layout: ${issues.map((i) => i.message).join('; ')}`);
+    };
+    if (!resolved.layout) return fail(resolved.issues);
+    const layout = resolved.layout;
+    await this.settings.assertValidLayout(ctx, layout);
+    const saved = await this.settings.get(ctx);
+    const errors = (
+      await this.limited(() => this.checkLayout(ctx, layout, seller ? compact(seller) : saved.seller, payment ? compact(payment) : saved.payment))
+    ).filter((i) => i.level === 'error');
+    if (errors.length) fail(errors);
+    return layout;
+  }
+
+  /** The layout checks with the worst-case sample, measured without fitting (so clipping is reported). */
+  private async checkLayout(ctx: RequestContext, layout: LayoutSettings, seller: SellerSettings, payment: PaymentSettings, language?: string | null): Promise<LayoutIssue[]> {
+    const data = await this.sampleSeller(ctx, seller, payment, []);
+    const model = this.sample(ctx, 'worst-case', data, language);
+    const input = await this.renderer.templateInput(ctx, model, layout);
+    const fonts = this.options.pdf.fonts ?? defaultFonts();
+    const result = await layoutDocument(layout, input, fonts, { fit: false });
+    return checkLayout(layout, result.measurement, undefined, { fonts: Object.keys(fonts) });
+  }
+
+  private sample(ctx: RequestContext, kind: SampleKind, seller: SellerData, language?: string | null): EInvoiceModel {
+    const lang = language || ctx.channel.defaultLanguageCode;
+    return sampleModel(kind, {
+      seller: seller.seller,
+      bank: seller.bank,
+      paymentTerms: seller.paymentTerms,
+      paymentTermDays: seller.paymentTermDays,
+      number: pdfLabels(lang, this.options.pdf.translations).draft,
+      language: lang,
+      currencyCode: ctx.channel.defaultCurrencyCode,
+      issueDate: this.mapper.today(),
+    });
+  }
+
+  private fontNames() {
+    return Object.keys(this.options.pdf.fonts ?? defaultFonts());
   }
 
   private defaultSellerStrategy() {
@@ -143,4 +225,36 @@ export class LayoutPreviewService {
       else this.running--;
     }
   }
+}
+
+const blank = (v: unknown) => v === undefined || v === null;
+
+/**
+ * The stored layout for an API input: the document (validated structurally) or the default layout, patched with
+ * the v1 fields that are set. Returns the structural errors instead of a layout if the document is invalid.
+ */
+export function resolveLayoutInput(input: LayoutInput): { layout?: LayoutSettings; issues: LayoutIssue[] } {
+  let base = defaultLayout();
+  if (!blank(input.document)) {
+    const parsed = parseLayout(input.document);
+    if (!parsed.layout) return { issues: parsed.issues };
+    const { logoAssetId: _ignored, ...doc } = parsed.layout as LayoutSettings;
+    base = doc;
+  }
+  const v1: PdfLayout = {};
+  for (const key of ['accentColor', 'introText', 'closingText', 'footerText'] as const) {
+    const value = input[key];
+    if (!blank(value)) v1[key] = value as string;
+  }
+  const tooLong = Object.entries(v1).filter(([, v]) => (v?.length ?? 0) > 2000);
+  if (tooLong.length) {
+    return { issues: tooLong.map(([k]) => ({ level: 'error' as const, code: 'TEXT_TOO_LONG', message: `${k} is longer than 2000 characters` })) };
+  }
+  const layout: LayoutSettings = Object.keys(v1).length ? patchLayout(base, v1) : base;
+  if (!blank(input.logoAssetId) && input.logoAssetId !== '') layout.logoAssetId = input.logoAssetId as ID;
+  return { layout, issues: [] };
+}
+
+function dedupe(issues: LayoutIssue[]): LayoutIssue[] {
+  return issues.filter((x, i) => issues.findIndex((y) => y.code === x.code && y.message === x.message) === i);
 }

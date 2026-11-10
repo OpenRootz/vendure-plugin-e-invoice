@@ -4,7 +4,8 @@ import { LayoutProbe, PdfDocDefinition, PdfFonts, probeLayout } from './printer'
 
 /** Where a block ended up on a page, in 0.1 mm. A block that spans pages has one box per page. */
 export interface BlockBox {
-  id: string;
+  /** The block's key */
+  key: string;
   page: number;
   x: number;
   y: number;
@@ -54,38 +55,38 @@ export function measureLayout(layout: PdfLayoutV2, plan: LayoutPlan, probe: Layo
 
   for (const chain of plan.chains) {
     for (const block of chain) {
-      const start = starts.get(block.id)?.[0];
-      const end = endsOf.get(block.id)?.[0];
+      const start = starts.get(block.key)?.[0];
+      const end = endsOf.get(block.key)?.[0];
       if (!start || !end) continue;
-      ends[block.id] = { page: end.page, top: end.top + (plan.empty.has(block.id) ? 0 : (options.pads?.[block.id] ?? 0)) };
-      if (plan.empty.has(block.id)) continue;
+      ends[block.key] = { page: end.page, top: end.top + (plan.empty.has(block.key) ? 0 : (options.pads?.[block.key] ?? 0)) };
+      if (plan.empty.has(block.key)) continue;
       const x = block.frame.x;
       const w = block.frame.w;
       if (start.page === end.page) {
         const height = end.top - start.top;
-        contentHeight[block.id] = height;
+        contentHeight[block.key] = height;
         const h = Math.max(fromPt(height), block.frame.h);
         const overflowBy = block.overflow === 'fixed' && height > toPt(block.frame.h) + TOLERANCE ? fromPt(height) - block.frame.h : undefined;
-        boxes.push({ id: block.id, page: start.page, x, y: fromPt(start.top), w, h: block.overflow === 'fixed' ? block.frame.h : h, ...(overflowBy ? { overflowBy } : {}) });
+        boxes.push({ key: block.key, page: start.page, x, y: fromPt(start.top), w, h: block.overflow === 'fixed' ? block.frame.h : h, ...(overflowBy ? { overflowBy } : {}) });
       } else {
         for (let page = start.page; page <= end.page; page++) {
           const top = page === start.page ? start.top : contTop;
           const bottom = page === end.page ? end.top : flowBottom;
-          boxes.push({ id: block.id, page, x, y: fromPt(top), w, h: fromPt(bottom - top) });
+          boxes.push({ key: block.key, page, x, y: fromPt(top), w, h: fromPt(bottom - top) });
         }
       }
     }
   }
   for (const block of plan.fixed) {
-    if (plan.empty.has(block.id)) continue;
-    const blockEnds = endsOf.get(block.id) ?? [];
-    for (const start of starts.get(block.id) ?? []) {
+    if (plan.empty.has(block.key)) continue;
+    const blockEnds = endsOf.get(block.key) ?? [];
+    for (const start of starts.get(block.key) ?? []) {
       const end = blockEnds.find((e) => e.page === start.page);
       if (!end) continue;
       const height = end.top - start.top;
-      contentHeight[block.id] = Math.max(contentHeight[block.id] ?? 0, height);
+      contentHeight[block.key] = Math.max(contentHeight[block.key] ?? 0, height);
       const overflowBy = height > toPt(block.frame.h) + TOLERANCE ? fromPt(height) - block.frame.h : undefined;
-      boxes.push({ id: block.id, page: start.page, x: block.frame.x, y: plan.staticY[block.id], w: block.frame.w, h: block.frame.h, ...(overflowBy ? { overflowBy } : {}) });
+      boxes.push({ key: block.key, page: start.page, x: block.frame.x, y: plan.staticY[block.key], w: block.frame.w, h: block.frame.h, ...(overflowBy ? { overflowBy } : {}) });
     }
   }
   boxes.sort((a, b) => a.page - b.page || a.y - b.y || a.x - b.x);
@@ -127,12 +128,12 @@ export async function layoutDocument(layout: PdfLayoutV2, input: LayoutRenderInp
   const final = compileLayout(layout, input, options);
   const issues: LayoutIssue[] = [...pushed];
   for (const box of measurement!.boxes) {
-    if (box.overflowBy && !issues.some((i) => i.code === 'LAYOUT_OVERFLOW' && i.blockId === box.id)) {
+    if (box.overflowBy && !issues.some((i) => i.code === 'LAYOUT_OVERFLOW' && i.blockKey === box.key)) {
       issues.push({
         level: 'warning',
         code: 'LAYOUT_OVERFLOW',
-        message: `The content of block ${box.id} is ${(box.overflowBy / 10).toFixed(1)} mm taller than its frame${fit ? '; it is printed beyond the frame' : ''}`,
-        blockId: box.id,
+        message: `The content of block ${box.key} is ${(box.overflowBy / 10).toFixed(1)} mm taller than its frame${fit ? '; it is printed beyond the frame' : ''}`,
+        blockKey: box.key,
       });
     }
   }
@@ -148,41 +149,41 @@ function adjust(layout: PdfLayoutV2, plan: LayoutPlan, m: LayoutMeasurement, cur
 
   for (const chain of plan.chains) {
     for (const block of chain) {
-      const height = m.contentHeight[block.id];
-      if (height === undefined || plan.empty.has(block.id)) continue;
+      const height = m.contentHeight[block.key];
+      if (height === undefined || plan.empty.has(block.key)) continue;
       const pad = toPt(block.frame.h) - height;
-      if (pad > 0.01) pads[block.id] = round(pad);
+      if (pad > 0.01) pads[block.key] = round(pad);
     }
   }
   plan.chains.forEach((chain, i) => {
     if (i === 0) return;
     const prev = plan.chains[i - 1];
-    const end = m.ends[prev[prev.length - 1].id];
+    const end = m.ends[prev[prev.length - 1].key];
     if (!end) return;
-    const wanted = toPt(plan.staticY[chain[0].id]);
+    const wanted = toPt(plan.staticY[chain[0].key]);
     if (end.page === 1 && end.top <= wanted + TOLERANCE) {
       const gap = wanted - end.top;
-      if (gap > 0.01) chainStarts[chain[0].id] = round(gap);
+      if (gap > 0.01) chainStarts[chain[0].key] = round(gap);
     } else {
       pushed.push({
         level: 'warning',
         code: 'CHAIN_PUSHED',
-        message: `Block ${chain[0].id} starts below the end of block ${prev[prev.length - 1].id}, not at its own position`,
-        blockId: chain[0].id,
+        message: `Block ${chain[0].key} starts below the end of block ${prev[prev.length - 1].key}, not at its own position`,
+        blockKey: chain[0].key,
       });
     }
   });
   if (fit) {
     const all: LayoutBlock[] = [...plan.fixed, ...plan.chains.flat().filter((b) => b.overflow === 'fixed')];
     for (const block of all) {
-      const height = m.contentHeight[block.id];
+      const height = m.contentHeight[block.key];
       const frame = toPt(block.frame.h);
       if (height === undefined || height <= frame + TOLERANCE) continue;
       const base = block.style?.fontSize ?? layout.theme.fontSize;
       const min = Math.min(1, MIN_FONT_SIZE / base);
-      const scale = fontScale[block.id] ?? 1;
+      const scale = fontScale[block.key] ?? 1;
       if (scale <= min) continue;
-      fontScale[block.id] = Math.max(min, Math.floor(scale * Math.min(0.95, frame / height) * 100) / 100);
+      fontScale[block.key] = Math.max(min, Math.floor(scale * Math.min(0.95, frame / height) * 100) / 100);
     }
   }
   return {

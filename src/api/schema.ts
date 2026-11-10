@@ -193,7 +193,12 @@ export const adminApiExtensions = gql`
     "The ZUGFeRD PDF as a data URL; null if it could not be rendered"
     pdf: String
     pageCount: Int!
+    "Problems with the invoice data (seller data, logo)"
     issues: [EInvoiceIssue!]!
+    "Where every block ended up"
+    blocks: [EInvoiceBlockBox!]!
+    "Problems of the layout (checked against the worst-case sample); errors block saving"
+    layoutIssues: [EInvoiceLayoutIssue!]!
   }
 
   input EInvoiceCreditNoteLineInput {
@@ -217,20 +222,55 @@ export const adminApiExtensions = gql`
 
   type EInvoiceLayout {
     logoAssetId: ID
-    accentColor: String
-    introText: String
-    closingText: String
-    footerText: String
+    "The layout document (version 2): page, theme and blocks with their frames in 0.1 mm"
+    document: JSON!
+    accentColor: String @deprecated(reason: "Use document.theme.accentColor")
+    introText: String @deprecated(reason: "Use the text prop of the introText block in document")
+    closingText: String @deprecated(reason: "Use the text prop of the closingText block in document")
+    footerText: String @deprecated(reason: "Use the text prop of the footer block in document")
   }
 
   input EInvoiceLayoutInput {
-    "PNG, JPEG or SVG asset shown at the top right of the PDF"
+    "PNG, JPEG or SVG asset for the logo block"
     logoAssetId: ID
-    "Hex color, e.g. #1a5fb4"
+    "The layout document (version 2); omitted = the default layout"
+    document: JSON
+    "Shortcut: sets document.theme.accentColor, e.g. #1a5fb4"
     accentColor: String
+    "Shortcut: sets the text of the introText block"
     introText: String
+    "Shortcut: sets the text of the closingText block"
     closingText: String
+    "Shortcut: sets the text of the footer block"
     footerText: String
+  }
+
+  "Where a block ended up on a page, in 0.1 mm"
+  type EInvoiceBlockBox {
+    "The block's key"
+    key: String!
+    page: Int!
+    x: Int!
+    y: Int!
+    w: Int!
+    h: Int!
+    "Content that does not fit into a fixed frame"
+    overflowBy: Int
+  }
+
+  type EInvoiceLayoutIssue {
+    "error or warning; errors block saving"
+    level: String!
+    code: String!
+    message: String!
+    blockKey: String
+  }
+
+  enum EInvoiceLayoutPreset {
+    DEFAULT
+    DIN_5008_A
+    DIN_5008_B
+    MINIMAL
   }
 
   type EInvoiceAddress {
@@ -361,7 +401,7 @@ export const adminApiExtensions = gql`
     seller: EInvoiceSellerSettingsInput
     "Replaces the stored payment settings"
     payment: EInvoicePaymentSettingsInput
-    "Replaces the stored layout settings"
+    "Replaces the stored layout; rejected if the layout checks report errors"
     layout: EInvoiceLayoutInput
   }
 
@@ -379,6 +419,8 @@ export const adminApiExtensions = gql`
     eInvoicePreview(orderId: ID!): EInvoicePreview!
     "Renders a draft layout with sample data (or an order) through the real PDF pipeline. Nothing is saved."
     eInvoiceLayoutPreview(input: EInvoiceLayoutPreviewInput!): EInvoiceLayoutPreview!
+    "A layout document to start from (reset to default, DIN 5008 presets)"
+    eInvoiceDefaultLayout(preset: EInvoiceLayoutPreset): JSON!
   }
 
   extend type Mutation {
