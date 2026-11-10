@@ -2,11 +2,13 @@ import { Args, Mutation, Parent, Query, ResolveField, Resolver } from '@nestjs/g
 import { Allow, Ctx, ID, ListQueryOptions, Order, OrderService, RequestContext, UserInputError } from '@vendure/core';
 
 import { eInvoicePermission } from '../constants';
-import { EInvoiceFormat } from '../core';
+import { EInvoiceFormat, LayoutPreset, layoutPreset, SampleKind, v1Fields } from '../core';
+import { LayoutSettings } from '../entities';
 import { EInvoice, EInvoiceFile } from '../entities';
 import { ChannelSettingsService, UpdateChannelSettingsInput } from '../services/channel-settings.service';
 import { DownloadLinkService } from '../services/download-link.service';
 import { InvoiceService, ManualCreditNoteInput } from '../services/invoice.service';
+import { LayoutInput, LayoutPreviewInput, LayoutPreviewService } from '../services/layout-preview.service';
 
 export const formatEnum = (f: EInvoiceFormat) => f.toUpperCase().replace(/-/g, '_');
 export const formatFromEnum = (f: string) => f.toLowerCase().replace(/_/g, '-') as EInvoiceFormat;
@@ -34,6 +36,7 @@ export class EInvoiceAdminResolver {
     private invoices: InvoiceService,
     private settings: ChannelSettingsService,
     private links: DownloadLinkService,
+    private layoutPreview: LayoutPreviewService,
   ) {}
 
   @Query()
@@ -53,6 +56,26 @@ export class EInvoiceAdminResolver {
   @Allow(eInvoicePermission.Read)
   eInvoicePreview(@Ctx() ctx: RequestContext, @Args() args: { orderId: ID }) {
     return this.invoices.preview(ctx, args.orderId);
+  }
+
+  @Query()
+  @Allow(eInvoicePermission.Read)
+  eInvoiceLayoutPreview(@Ctx() ctx: RequestContext, @Args() args: { input: Omit<LayoutPreviewInput, 'sample'> & { sample?: string | null } }) {
+    const { sample, ...input } = args.input;
+    return this.layoutPreview.preview(ctx, { ...input, sample: sample ? (sample.toLowerCase().replace(/_/g, '-') as SampleKind) : undefined });
+  }
+
+  @Query()
+  @Allow(eInvoicePermission.Read)
+  eInvoiceDefaultLayout(@Args() args: { preset?: string | null }) {
+    const presets: Record<string, LayoutPreset> = { DEFAULT: 'default', DIN_5008_A: 'din5008A', DIN_5008_B: 'din5008B', MINIMAL: 'minimal' };
+    return layoutPreset(presets[args.preset ?? 'DEFAULT'] ?? 'default');
+  }
+
+  @Query()
+  @Allow(eInvoicePermission.Read)
+  eInvoiceLayoutFonts() {
+    return this.layoutPreview.fontNames();
   }
 
   @Query()
@@ -127,8 +150,10 @@ export class EInvoiceAdminResolver {
 
   @Mutation()
   @Allow(eInvoicePermission.Update)
-  updateEInvoiceChannelSettings(@Ctx() ctx: RequestContext, @Args() args: { input: UpdateChannelSettingsInput }) {
-    return this.settings.update(ctx, args.input);
+  async updateEInvoiceChannelSettings(@Ctx() ctx: RequestContext, @Args() args: { input: UpdateChannelSettingsInput & { layout?: LayoutInput | null } }) {
+    const { layout, ...input } = args.input;
+    const prepared = layout ? await this.layoutPreview.prepareLayout(ctx, layout, input.seller, input.payment) : undefined;
+    return this.settings.update(ctx, { ...input, ...(prepared ? { layout: prepared } : {}) });
   }
 }
 
@@ -233,5 +258,35 @@ export class EInvoiceOrderResolver {
   @Allow(eInvoicePermission.Read)
   eInvoices(@Ctx() ctx: RequestContext, @Parent() order: Order) {
     return this.invoices.findByOrder(ctx, order.id);
+  }
+}
+
+/** The stored layout is the v2 document; the v1 fields are derived from it. */
+@Resolver('EInvoiceLayout')
+export class EInvoiceLayoutResolver {
+  @ResolveField()
+  document(@Parent() layout: LayoutSettings) {
+    const { logoAssetId: _logo, ...document } = layout;
+    return document;
+  }
+
+  @ResolveField()
+  accentColor(@Parent() layout: LayoutSettings) {
+    return v1Fields(layout).accentColor;
+  }
+
+  @ResolveField()
+  introText(@Parent() layout: LayoutSettings) {
+    return v1Fields(layout).introText || null;
+  }
+
+  @ResolveField()
+  closingText(@Parent() layout: LayoutSettings) {
+    return v1Fields(layout).closingText || null;
+  }
+
+  @ResolveField()
+  footerText(@Parent() layout: LayoutSettings) {
+    return v1Fields(layout).footerText || null;
   }
 }

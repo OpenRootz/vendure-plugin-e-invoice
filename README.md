@@ -176,11 +176,28 @@ guarantees it is gap-free; the number must be unique per channel.
 
 ### PDF layout
 
-Level 1, no code: logo (PNG, JPEG or SVG asset), accent color, intro, closing and footer texts in the channel
-settings. Labels can be overridden per language with `pdf.translations` (German and English are built in; the
-language follows the channel default or `mapping.language`).
+Level 1, no code: the **layout editor** in the dashboard (Settings → Invoice layout). The layout is a document of
+blocks (logo, sender line, recipient, details, title, texts, line table, totals, payment, footer, page number, free
+texts and images), each with a free frame on the page:
 
-Level 2: your own layout as a [pdfmake](https://pdfmake.github.io/docs/) document definition:
+- `overflow: 'grow'` blocks take the height their content needs and continue on the next page; `fixed` blocks
+  keep their frame. An `anchor` places a block below another one, so it moves with content of unknown length
+  (the default layout anchors totals → line table → …).
+- Saving runs the layout checks against a worst-case sample invoice: every field §14 UStG requires must be printed
+  by a visible block, fixed blocks must not clip their content, frames must be on the page, two growing blocks
+  must not stand side by side. Overlaps, the 5 mm border, the DIN 5008 window, small fonts and low contrast are
+  warnings.
+- When real data still does not fit into a fixed block, its font shrinks down to 6 pt and the content is then
+  printed beyond the frame; it is never cut off, and a `LAYOUT_OVERFLOW` warning is added to the invoice's
+  validation summary.
+
+Labels can be overridden per language with `pdf.translations` (German and English are built in; the language
+follows the channel default or `mapping.language`). Layouts saved before the editor (accent color and texts) are
+converted when read.
+
+Level 2: your own layout as a [pdfmake](https://pdfmake.github.io/docs/) document definition. `input.layout` is
+the channel's layout document; `compileLayout`, `layoutTemplate`, `defaultTemplate`, `blockRenderers` and
+`checkLayout` are exported, so you can start from the shop's layout and change details:
 
 ```ts
 import { defaultTemplate, InvoicePdfStrategy, PdfTemplateInput } from '@openrootz/vendure-plugin-e-invoice';
@@ -188,7 +205,7 @@ import { defaultTemplate, InvoicePdfStrategy, PdfTemplateInput } from '@openroot
 class MyPdfStrategy implements InvoicePdfStrategy {
   buildDocDefinition(ctx: RequestContext, input: PdfTemplateInput) {
     const doc = defaultTemplate(input);   // or build your own from input.model and input.labels
-    return { ...doc, footer: () => ({ text: 'My footer', alignment: 'center' }) };
+    return { ...doc, watermark: { text: 'COPY', opacity: 0.1 } };
   }
 }
 ```
@@ -196,7 +213,7 @@ class MyPdfStrategy implements InvoicePdfStrategy {
 The plugin always enforces PDF/A-3b, embedded fonts, the attached XML and the Factur-X metadata, so a template
 cannot produce a non-compliant e-invoice. Templates cannot load URLs or files; images must be data URLs.
 Custom fonts: `pdf.fonts` with TTF paths (`{ MyFont: { normal, bold, italics, bolditalics } }`); the default is
-Roboto (Latin, Greek, Cyrillic).
+Roboto (Latin, Greek, Cyrillic). A layout can pick one of them as `theme.font`.
 
 ### Other strategies and hooks
 
@@ -225,8 +242,10 @@ Permissions: `CreateEInvoice`, `ReadEInvoice`, `UpdateEInvoice` (retry, void, se
 | `eInvoices(options)` | list with filters and sorting (incl. `type`, `status`, `orderCode`) |
 | `eInvoice(id)`, `Order.eInvoices` | documents incl. files, issues, credit notes, `remainingAmount`, `creditable`, `validation` |
 | `eInvoicePreview(orderId)` | the PDF the order would get now, with a draft number; nothing is saved |
+| `eInvoiceLayoutPreview(input)` | renders an unsaved layout (and unsaved seller data) with sample data or an order; returns the PDF, page count, where every block ended up and the layout issues |
+| `eInvoiceDefaultLayout(preset)` | a layout document to start from: default, DIN 5008 Form A/B, minimal |
 | `eInvoiceSetupStatus` | what is missing in the channel |
-| `eInvoiceChannelSettings` / `updateEInvoiceChannelSettings` | seller, payment terms, layout |
+| `eInvoiceChannelSettings` / `updateEInvoiceChannelSettings` | seller, payment terms, layout (rejected if the layout checks report errors) |
 | `createEInvoice(orderId)` | manual invoice; returns a BLOCKED invoice with `issues` if data is missing |
 | `retryEInvoice(id)` | BLOCKED: map the order again; FAILED: render again |
 | `voidEInvoice(id, reason)` | FAILED → VOID |
@@ -283,7 +302,13 @@ The plugin ships an extension for the React dashboard (`@vendure/dashboard`), co
   cancel & reissue, retry, void, copy guest link, PDF preview). Blocked invoices list their problems with links to
   where they are fixed.
 - **Sales → E-Invoices**: list with filters and ZIP download of the selection.
-- **Settings → E-Invoices**: seller data, bank account, payment terms, logo and texts, setup status, PDF preview.
+- **Settings → E-Invoices**: seller data, bank account, payment terms, setup status, PDF preview with sample data.
+- **Settings → Invoice layout**: the visual layout editor. The real PDF (sample invoices or the latest order) is
+  rendered by the server and shown with pdf.js; drag and resize blocks on the page (snapping to a 1 mm grid, the
+  margins and other blocks; Shift = free; arrow keys move by 0.5 mm, with Shift by 5 mm), show or hide them, anchor
+  them below growing blocks, edit texts, fonts and colors, add free texts, images and page numbers, start from a
+  preset (DIN 5008 Form A/B, minimal), undo and redo. Blocks that carry content §14 UStG requires are marked and
+  cannot be hidden when they are its last carrier; saving is disabled while the layout checks report errors.
 - The custom fields appear in the `E-Invoice` tab of orders, customers, tax rates and payment methods.
 
 No extra configuration is needed: `vendureDashboardPlugin` finds the extension through the plugin metadata.

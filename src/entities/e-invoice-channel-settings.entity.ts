@@ -1,7 +1,7 @@
 import { DeepPartial, EntityId, ID, VendureEntity } from '@vendure/core';
 import { Column, Entity, Index } from 'typeorm';
 
-import { Address, Contact, ElectronicAddress } from '../core';
+import { Address, Contact, ElectronicAddress, PdfLayout, PdfLayoutV2 } from '../core';
 import { BankAccount } from '../strategies/types';
 
 export interface SellerSettings {
@@ -24,13 +24,11 @@ export interface PaymentSettings {
   termDays?: number;
 }
 
-export interface LayoutSettings {
-  logoAssetId?: ID;
-  accentColor?: string;
-  introText?: string;
-  closingText?: string;
-  footerText?: string;
-}
+/** The stored layout: the layout document (v2) with the logo asset. */
+export type LayoutSettings = PdfLayoutV2 & { logoAssetId?: ID };
+
+/** Layouts stored before the layout editor (v1): accent color and texts; converted when read. */
+export type LegacyLayoutSettings = PdfLayout & { logoAssetId?: ID };
 
 /** E-invoicing settings of a channel: seller data, payment terms and PDF layout. */
 @Entity('e_invoice_channel_settings')
@@ -57,6 +55,7 @@ export class EInvoiceChannelSettings extends VendureEntity {
   @Column('simple-json')
   payment: PaymentSettings;
 
+  /** v1 layouts are converted to v2 by `ChannelSettingsService.get` and written back on the next save */
   @Column('simple-json')
   layout: LayoutSettings;
 }

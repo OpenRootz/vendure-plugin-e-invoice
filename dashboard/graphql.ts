@@ -253,6 +253,68 @@ export const previewDocument = doc<{ eInvoicePreview: { pdf: string | null; issu
   }
 `);
 
+export type EInvoiceSample = 'B2B_NET' | 'B2C_GROSS' | 'CREDIT_NOTE' | 'MANY_LINES' | 'WORST_CASE';
+
+export interface LayoutPreview {
+  pdf: string | null;
+  pageCount: number;
+  issues: EInvoiceIssue[];
+  blocks: { key: string; page: number; x: number; y: number; w: number; h: number; overflowBy?: number | null }[];
+  layoutIssues: { level: 'error' | 'warning'; code: string; message: string; blockKey?: string | null }[];
+}
+
+export interface LayoutPreviewInput {
+  layout?: unknown;
+  seller?: unknown;
+  payment?: unknown;
+  orderId?: string;
+  sample?: EInvoiceSample;
+  language?: string;
+}
+
+export const layoutPreviewDocument = doc<{ eInvoiceLayoutPreview: LayoutPreview }, { input: LayoutPreviewInput }>(`
+  query EInvoiceLayoutPreview($input: EInvoiceLayoutPreviewInput!) {
+    eInvoiceLayoutPreview(input: $input) {
+      pdf
+      pageCount
+      issues {
+        code
+        message
+        path
+      }
+      blocks {
+        key
+        page
+        x
+        y
+        w
+        h
+        overflowBy
+      }
+      layoutIssues {
+        level
+        code
+        message
+        blockKey
+      }
+    }
+  }
+`);
+
+export const layoutFontsDocument = doc<{ eInvoiceLayoutFonts: string[] }>(`
+  query EInvoiceLayoutFonts {
+    eInvoiceLayoutFonts
+  }
+`);
+
+export type LayoutPresetName = 'DEFAULT' | 'DIN_5008_A' | 'DIN_5008_B' | 'MINIMAL';
+
+export const defaultLayoutDocument = doc<{ eInvoiceDefaultLayout: unknown }, { preset?: LayoutPresetName }>(`
+  query EInvoiceDefaultLayout($preset: EInvoiceLayoutPreset) {
+    eInvoiceDefaultLayout(preset: $preset)
+  }
+`);
+
 export const latestOrderDocument = doc<{ orders: { items: { id: string; code: string }[] } }>(`
   query EInvoiceLatestOrder {
     orders(options: { take: 1, sort: { orderPlacedAt: DESC }, filter: { active: { eq: false } } }) {
@@ -290,10 +352,8 @@ export interface ChannelSettings {
   payment: { termsText?: string | null; termDays?: number | null };
   layout: {
     logoAssetId?: string | null;
-    accentColor?: string | null;
-    introText?: string | null;
-    closingText?: string | null;
-    footerText?: string | null;
+    /** The layout document (v2) */
+    document?: unknown;
   };
 }
 
@@ -338,10 +398,7 @@ const SETTINGS_FIELDS = `
   }
   layout {
     logoAssetId
-    accentColor
-    introText
-    closingText
-    footerText
+    document
   }
 `;
 

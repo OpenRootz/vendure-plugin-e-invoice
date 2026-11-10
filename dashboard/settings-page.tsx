@@ -1,9 +1,9 @@
 import {
   api,
-  AssetPickerDialog,
   Button,
   Input,
   Label,
+  Link,
   Page,
   PageActionBar,
   PageActionBarRight,
@@ -21,14 +21,7 @@ import {
 import { useEffect, useState } from 'react';
 
 import { errorMessage, IssueList, openPdf, UPDATE } from './common';
-import {
-  assetDocument,
-  ChannelSettings,
-  latestOrderDocument,
-  previewDocument,
-  settingsDocument,
-  updateSettingsDocument,
-} from './graphql';
+import { ChannelSettings, layoutPreviewDocument, settingsDocument, updateSettingsDocument } from './graphql';
 
 const EMPTY: ChannelSettings = { enabled: false, autoIssue: true, seller: {}, payment: {}, layout: {} };
 
@@ -44,7 +37,10 @@ function setPath<T extends object>(obj: T, path: string, value: unknown): T {
 
 const getPath = (obj: unknown, path: string): any => path.split('.').reduce((o: any, k) => o?.[k], obj);
 
-/** Builds the update input: empty strings are sent as null (cleared), so nested objects without content drop out. */
+/**
+ * Builds the update input: empty strings are sent as null (cleared), so nested objects without content drop out.
+ * The layout is edited on its own page and not sent from here.
+ */
 function toInput(s: ChannelSettings) {
   const blank = (v: unknown) => v === undefined || v === null || v === '';
   const clean = (o: Record<string, any> | null | undefined, required: string[] = []) => {
@@ -52,7 +48,7 @@ function toInput(s: ChannelSettings) {
     const out = Object.fromEntries(Object.entries(o).filter(([k, v]) => k !== '__typename' && !blank(v)));
     return Object.keys(out).length && required.every((k) => !blank(out[k])) ? out : null;
   };
-  const { seller, payment, layout } = s;
+  const { seller, payment } = s;
   return {
     enabled: s.enabled,
     autoIssue: s.autoIssue,
@@ -65,7 +61,6 @@ function toInput(s: ChannelSettings) {
       bank: clean(seller.bank, ['iban']),
     },
     payment: { termsText: payment.termsText || null, termDays: payment.termDays ? Number(payment.termDays) : null },
-    layout: clean(layout) ?? {},
   };
 }
 
@@ -108,25 +103,17 @@ function Field({
 
 const grid = 'grid gap-4 md:grid-cols-2';
 
-/** E-invoicing settings of the active channel: seller data, payment terms and the PDF layout. */
+/** E-invoicing settings of the active channel: seller data and payment terms. The PDF layout has its own page. */
 export function SettingsPage() {
   const queryClient = useQueryClient();
   const { hasPermissions } = usePermissions();
   const canUpdate = hasPermissions([UPDATE]);
   const { data, isLoading } = useQuery({ queryKey: ['e-invoice-settings'], queryFn: () => api.query(settingsDocument) });
   const [settings, setSettings] = useState<ChannelSettings>(EMPTY);
-  const [assetPicker, setAssetPicker] = useState(false);
 
   useEffect(() => {
     if (data) setSettings(data.eInvoiceChannelSettings);
   }, [data]);
-
-  const logoId = settings.layout.logoAssetId;
-  const logo = useQuery({
-    queryKey: ['e-invoice-logo', logoId],
-    queryFn: () => api.query(assetDocument, { id: logoId as string }),
-    enabled: !!logoId,
-  });
 
   const change = (path: string, value: unknown) => setSettings((s) => setPath(s, path, value));
   const fieldProps = { value: settings, onChange: change };
@@ -140,17 +127,17 @@ export function SettingsPage() {
     onError: (e) => toast.error('Could not save the settings', { description: errorMessage(e) }),
   });
 
+  // Sample invoice with the unsaved seller and payment data, so it also works before the first order
   const preview = useMutation({
-    mutationFn: async () => {
-      const { orders } = await api.query(latestOrderDocument);
-      if (!orders.items.length) throw new Error('There is no placed order to preview yet');
-      return api.query(previewDocument, { orderId: orders.items[0].id });
+    mutationFn: () => {
+      const { seller, payment } = toInput(settings);
+      return api.query(layoutPreviewDocument, { input: { seller, payment, sample: 'B2B_NET' } });
     },
-    onSuccess: ({ eInvoicePreview }) => {
-      if (eInvoicePreview.issues.length) {
-        toast.warning('The invoice would be blocked', { description: eInvoicePreview.issues.map((i) => i.message).join('\n') });
+    onSuccess: ({ eInvoiceLayoutPreview }) => {
+      if (eInvoiceLayoutPreview.issues.length) {
+        toast.warning('Invoices would be blocked', { description: eInvoiceLayoutPreview.issues.map((i) => i.message).join('\n') });
       }
-      if (eInvoicePreview.pdf) openPdf(eInvoicePreview.pdf);
+      if (eInvoiceLayoutPreview.pdf) openPdf(eInvoiceLayoutPreview.pdf);
     },
     onError: (e) => toast.error('Preview failed', { description: errorMessage(e) }),
   });
@@ -164,7 +151,7 @@ export function SettingsPage() {
       <PageActionBar>
         <PageActionBarRight>
           <Button variant="outline" disabled={preview.isPending} onClick={() => preview.mutate()}>
-            Preview PDF (latest order)
+            Preview PDF (sample)
           </Button>
           {canUpdate && (
             <Button disabled={save.isPending} onClick={() => save.mutate()}>
@@ -226,40 +213,15 @@ export function SettingsPage() {
           </div>
         </PageBlock>
         <PageBlock column="side" blockId="e-invoice-layout" title="PDF layout">
-          <div className="space-y-3">
-            <div className="grid gap-1.5">
-              <Label>Logo</Label>
-              {logoId && logo.data?.asset && (
-                <img src={logo.data.asset.preview + '?preset=thumb'} alt={logo.data.asset.name} className="h-16 w-auto object-contain" />
-              )}
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => setAssetPicker(true)}>
-                  {logoId ? 'Change' : 'Select'}
-                </Button>
-                {logoId && (
-                  <Button size="sm" variant="ghost" onClick={() => change('layout.logoAssetId', null)}>
-                    Remove
-                  </Button>
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground">PNG, JPEG or SVG</p>
-            </div>
-            <Field label="Accent color" path="layout.accentColor" hint="Hex, e.g. #1a5fb4" {...fieldProps} />
-            <Field label="Intro text" path="layout.introText" multiline {...fieldProps} />
-            <Field label="Closing text" path="layout.closingText" multiline {...fieldProps} />
-            <Field label="Footer text" path="layout.footerText" multiline {...fieldProps} />
-          </div>
+          <p className="text-sm">
+            Logo, colors, texts and the position of every block are set in the{' '}
+            <Link to="/e-invoices/layout" className="text-primary underline-offset-4 hover:underline">
+              invoice layout editor
+            </Link>
+            .
+          </p>
         </PageBlock>
       </PageLayout>
-      <AssetPickerDialog
-        open={assetPicker}
-        onClose={() => setAssetPicker(false)}
-        onSelect={(assets: { id: string }[]) => {
-          if (assets[0]) change('layout.logoAssetId', assets[0].id);
-          setAssetPicker(false);
-        }}
-        title="Select a logo"
-      />
     </Page>
   );
 }

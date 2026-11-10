@@ -1,9 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { RequestContext, TaxRate, TransactionalConnection } from '@vendure/core';
+import { Asset, ID, RequestContext, TaxRate, TransactionalConnection, UserInputError } from '@vendure/core';
 
 import { PLUGIN_INIT_OPTIONS } from '../constants';
-import { checkSeller } from '../core';
-import { EInvoiceChannelSettings, LayoutSettings, PaymentSettings, SellerSettings } from '../entities';
+import { checkSeller, isLayoutV2, layoutFromV1, PdfLayout } from '../core';
+import { EInvoiceChannelSettings, LayoutSettings, LegacyLayoutSettings, PaymentSettings, SellerSettings } from '../entities';
 import { ResolvedEInvoicePluginOptions } from '../options';
 import { ChannelSettingsSellerStrategy, sellerFromSettings } from '../strategies/seller-data-strategy';
 
@@ -12,7 +12,7 @@ export interface UpdateChannelSettingsInput {
   autoIssue?: boolean;
   seller?: SellerSettings;
   payment?: PaymentSettings;
-  layout?: LayoutSettings;
+  layout?: LayoutSettings | LegacyLayoutSettings;
 }
 
 /** A problem reported through the API (setup status, preview). `path` points to where it can be fixed. */
@@ -22,6 +22,11 @@ export interface SetupIssue {
   /** e.g. `seller.vatId` or `taxRate:12` */
   path?: string;
 }
+
+/** Longest text field of a layout (intro, closing and footer text, custom text blocks). */
+export const MAX_LAYOUT_TEXT = 2000;
+/** Logos above this size are rejected (also enforced by the preview). */
+export const MAX_LOGO_BYTES = 2 * 1024 * 1024;
 
 const EXEMPT_CATEGORIES = ['E', 'AE', 'K', 'G', 'O'];
 const ZERO_RATE_CATEGORIES = ['Z', 'E', 'AE', 'K', 'G', 'O'];
@@ -33,15 +38,16 @@ export class ChannelSettingsService {
     private connection: TransactionalConnection,
   ) {}
 
-  /** Settings of the current channel; an unsaved default (disabled) when none exist yet. */
+  /** Settings of the current channel; an unsaved default (disabled) when none exist yet. v1 layouts are converted. */
   async get(ctx: RequestContext): Promise<EInvoiceChannelSettings> {
     const existing = await this.connection
       .getRepository(ctx, EInvoiceChannelSettings)
       .findOne({ where: { channelId: ctx.channelId } });
-    return (
+    const settings =
       existing ??
-      new EInvoiceChannelSettings({ channelId: ctx.channelId, enabled: false, autoIssue: true, seller: {}, payment: {}, layout: {} })
-    );
+      new EInvoiceChannelSettings({ channelId: ctx.channelId, enabled: false, autoIssue: true, seller: {}, payment: {}, layout: undefined });
+    settings.layout = migrateLayout(settings.layout);
+    return settings;
   }
 
   async update(ctx: RequestContext, input: UpdateChannelSettingsInput): Promise<EInvoiceChannelSettings> {
@@ -50,8 +56,29 @@ export class ChannelSettingsService {
     if (input.autoIssue !== undefined && input.autoIssue !== null) settings.autoIssue = input.autoIssue;
     if (input.seller) settings.seller = compact(input.seller);
     if (input.payment) settings.payment = compact(input.payment);
-    if (input.layout) settings.layout = compact(input.layout);
+    if (input.layout) {
+      // The resolver validates the layout completely (LayoutPreviewService.prepareLayout); this is the minimum
+      const layout = migrateLayout(input.layout);
+      await this.assertValidLayout(ctx, layout);
+      settings.layout = layout;
+    }
     return this.connection.getRepository(ctx, EInvoiceChannelSettings).save(settings);
+  }
+
+  /** Rejects layouts with oversized texts or logos (`UserInputError`). Used on save and by the preview. */
+  async assertValidLayout(ctx: RequestContext, layout: LayoutSettings | LegacyLayoutSettings): Promise<void> {
+    const problems = isLayoutV2(layout) ? [] : layoutTextProblems(layout);
+    const assets = [
+      ...(layout.logoAssetId ? [{ id: layout.logoAssetId, what: 'The logo' }] : []),
+      ...(isLayoutV2(layout) ? layout.blocks : [])
+        .filter((b) => b.type === 'image' && b.props?.assetId !== undefined)
+        .map((b) => ({ id: b.props!.assetId as ID, what: `The image of block ${b.key}` })),
+    ];
+    for (const { id, what } of assets) {
+      const asset = await this.connection.getRepository(ctx, Asset).findOne({ where: { id } });
+      if (asset && asset.fileSize > MAX_LOGO_BYTES) problems.push(`${what} is larger than ${MAX_LOGO_BYTES / 1024 / 1024} MB`);
+    }
+    if (problems.length) throw new UserInputError(`Invalid layout: ${problems.join('; ')}`);
   }
 
   /**
@@ -111,8 +138,22 @@ export class ChannelSettingsService {
   }
 }
 
+/** v1 layouts (and none) become the v2 default layout with the v1 values. */
+export function migrateLayout(layout: LayoutSettings | LegacyLayoutSettings | undefined | null): LayoutSettings {
+  if (isLayoutV2(layout)) return layout as LayoutSettings;
+  const { logoAssetId, ...v1 } = (layout ?? {}) as LegacyLayoutSettings;
+  return { ...layoutFromV1(v1), ...(logoAssetId ? { logoAssetId } : {}) };
+}
+
+/** Text fields longer than {@link MAX_LAYOUT_TEXT}. */
+export function layoutTextProblems(layout: PdfLayout): string[] {
+  return (['introText', 'closingText', 'footerText'] as const)
+    .filter((k) => (layout[k]?.length ?? 0) > MAX_LAYOUT_TEXT)
+    .map((k) => `${k} is longer than ${MAX_LAYOUT_TEXT} characters`);
+}
+
 /** Drops null, undefined and empty-string values (GraphQL inputs send `null` for cleared fields). */
-function compact<T>(value: T): T {
+export function compact<T>(value: T): T {
   if (Array.isArray(value)) return value.map(compact) as T;
   if (value && typeof value === 'object') {
     const out: Record<string, unknown> = {};

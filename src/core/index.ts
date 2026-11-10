@@ -5,5 +5,6 @@ export * from './money';
 export * from './calculate';
 export * from './checks';
 export * from './credit-note';
+export * from './sample';
 export * from './xml';
 export * from './pdf';
