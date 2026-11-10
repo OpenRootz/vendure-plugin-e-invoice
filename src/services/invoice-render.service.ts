@@ -242,7 +242,8 @@ export class InvoiceRenderService {
    * With `issues`, images above {@link MAX_LOGO_BYTES} are skipped and reported there.
    */
   private async loadImage(ctx: RequestContext, assetId: ID, path: string, issues?: RenderedPdf['issues']): Promise<PdfImage | undefined> {
-    const asset = await this.connection.getRepository(ctx, Asset).findOne({ where: { id: assetId } });
+    // Only assets of the current channel, like the asset picker shows them
+    const asset = await this.connection.getRepository(ctx, Asset).findOne({ where: { id: assetId, channels: { id: ctx.channelId } } });
     const report = (code: string, message: string) => {
       issues?.push({ code, message, path });
       Logger.warn(message, loggerCtx);

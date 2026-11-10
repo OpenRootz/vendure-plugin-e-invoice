@@ -75,7 +75,7 @@ export class ChannelSettingsService {
         .map((b) => ({ id: b.props!.assetId as ID, what: `The image of block ${b.key}` })),
     ];
     for (const { id, what } of assets) {
-      const asset = await this.connection.getRepository(ctx, Asset).findOne({ where: { id } });
+      const asset = await this.connection.getRepository(ctx, Asset).findOne({ where: { id, channels: { id: ctx.channelId } } });
       if (asset && asset.fileSize > MAX_LOGO_BYTES) problems.push(`${what} is larger than ${MAX_LOGO_BYTES / 1024 / 1024} MB`);
     }
     if (problems.length) throw new UserInputError(`Invalid layout: ${problems.join('; ')}`);
