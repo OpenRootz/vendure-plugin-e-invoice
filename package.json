@@ -41,7 +41,11 @@
     "dashboard:build": "vite build -c test/dashboard/vite.config.mts",
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down",
-    "validate": "bash test/validate/validate.sh"
+    "validate": "bash test/validate/validate.sh",
+    "lint": "eslint src dashboard test \"*.mjs\"",
+    "lint:fix": "eslint --fix src dashboard test \"*.mjs\"",
+    "format": "prettier --write src dashboard test .github \"*.{json,md,mjs,mts,yml,yaml}\"",
+    "format:check": "prettier --check src dashboard test .github \"*.{json,md,mjs,mts,yml,yaml}\""
   },
   "peerDependencies": {
     "@aws-sdk/client-s3": "^3.0.0",
@@ -64,16 +68,23 @@
   },
   "devDependencies": {
     "@aws-sdk/client-s3": "^3.1164.0",
+    "@eslint/js": "^10.0.1",
     "@swc/core": "^1.16.22",
     "@types/node": "^22.0.0",
     "@vendure/core": "3.8.1",
     "@vendure/dashboard": "3.8.1",
     "@vendure/testing": "3.8.1",
+    "eslint": "^10.14.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.14.0",
     "graphql": "^16.14.2",
     "pg": "^8.13.0",
+    "prettier": "^3.9.10",
     "rimraf": "^6.0.1",
     "ts-node": "^10.9.2",
     "typescript": "~5.9.3",
+    "typescript-eslint": "^8.72.2",
     "unplugin-swc": "^2.0.0",
     "vitest": "^5.1.0"
   }
