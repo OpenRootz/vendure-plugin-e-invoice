@@ -17,9 +17,9 @@ jobs:
     name: Lint, format & audit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
@@ -52,9 +52,9 @@ jobs:
     env:
       TEST_DB: ${{ matrix.db }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
           cache: pnpm
@@ -67,7 +67,7 @@ jobs:
         run: pnpm dashboard:build
       - name: Keep generated e-invoices for validation
         if: matrix.node == 24 && matrix.db == 'sqljs'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: generated-invoices
           path: |
@@ -80,12 +80,12 @@ jobs:
     runs-on: ubuntu-latest
     needs: test
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           name: generated-invoices
           path: test/__output__
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: .validate-tools
           key: validate-tools-${{ hashFiles('test/validate/versions.env') }}
@@ -97,9 +97,9 @@ jobs:
       - name: PDFs and XML generated from e2e orders
         if: always()
         run: bash test/validate/validate.sh test/__output__/e2e
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         if: always()
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         if: always()
         with:
           node-version: 24
@@ -111,7 +111,7 @@ jobs:
           bash test/validate/kosit-daemon.sh 8080
           KOSIT_URL=http://localhost:8080/ pnpm vitest run test/unit/validator.spec.ts
       - if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: validation-reports
           path: test/__output__/validate
