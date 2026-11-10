@@ -24,6 +24,9 @@ updates:
       # Matches the oldest supported Node version (engines.node)
       - dependency-name: '@types/node'
         update-types: [version-update:semver-major]
+      # Must match the graphql major that @vendure/core depends on
+      - dependency-name: 'graphql'
+        update-types: [version-update:semver-major]
 
   - package-ecosystem: github-actions
     directory: /
