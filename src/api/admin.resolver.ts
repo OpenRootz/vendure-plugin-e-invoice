@@ -161,6 +161,24 @@ export class EInvoiceEntityResolver {
   }
 
   @ResolveField()
+  async creditable(@Ctx() ctx: RequestContext, @Parent() invoice: EInvoice) {
+    const summary = await this.invoices.creditable(ctx, invoice);
+    return (
+      summary && {
+        ...summary,
+        lines: summary.lines.map((l) => ({
+          orderLineId: l.orderLineId ?? null,
+          name: l.name,
+          sku: l.sellerItemId ?? null,
+          invoicedQuantity: Math.round(Number(l.invoicedQuantity)),
+          remainingQuantity: Math.floor(Number(l.remainingQuantity)),
+          remainingGross: l.remainingGross,
+        })),
+      }
+    );
+  }
+
+  @ResolveField()
   remainingAmount(@Ctx() ctx: RequestContext, @Parent() invoice: EInvoice) {
     return this.invoices.remainingAmount(ctx, invoice);
   }

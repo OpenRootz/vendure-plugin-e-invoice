@@ -43,6 +43,9 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm build
       - run: pnpm test
+      - name: Build the dashboard with the extension
+        if: matrix.node == 24 && matrix.db == 'sqljs'
+        run: pnpm dashboard:build
       - name: Keep generated e-invoices for validation
         if: matrix.node == 24 && matrix.db == 'sqljs'
         uses: actions/upload-artifact@v4

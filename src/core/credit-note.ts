@@ -430,3 +430,45 @@ export function creditPaymentMeans(means: PaymentMeans[], texts: Pick<CreditNote
   }
   return result;
 }
+
+export interface CreditableSummary {
+  lines: {
+    lineId: string;
+    orderLineId?: string;
+    name: string;
+    sellerItemId?: string;
+    invoicedQuantity: Decimal;
+    remainingQuantity: Decimal;
+    /** Gross amount of the remaining quantity */
+    remainingGross: Money;
+  }[];
+  /** Gross amount of the document-level charges (shipping, surcharges) minus allowances not credited yet */
+  chargesGross: Money;
+  /** Remaining gross amount of the invoice */
+  remainingTotal: Money;
+}
+
+/** What can still be credited, per line, for display (e.g. the credit note dialog). */
+export function creditableSummary(invoice: EInvoiceModel, creditNotes: EInvoiceModel[]): CreditableSummary {
+  const state = creditableState(invoice, creditNotes);
+  const gross = (net: Money, vendureTax: Money | undefined, vat: VatCategory | undefined) =>
+    vat ? net + itemTax(net, vendureTax, vat) : net;
+  return {
+    lines: invoice.lines.map((line) => {
+      const rest = state.lines.get(line.id);
+      return {
+        lineId: line.id,
+        orderLineId: line.orderLineId,
+        name: line.name,
+        sellerItemId: line.sellerItemId,
+        invoicedQuantity: line.quantity,
+        remainingQuantity: rest?.quantity ?? '0',
+        remainingGross: rest ? rest.net + rest.tax : 0,
+      };
+    }),
+    chargesGross:
+      sum([...state.charges].map((i) => gross(invoice.charges[i].amount, invoice.charges[i].vendureTaxAmount, invoice.charges[i].vat))) -
+      sum([...state.allowances].map((i) => gross(invoice.allowances[i].amount, invoice.allowances[i].vendureTaxAmount, invoice.allowances[i].vat))),
+    remainingTotal: state.remainingTotal,
+  };
+}

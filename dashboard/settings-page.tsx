@@ -1,0 +1,265 @@
+import {
+  api,
+  AssetPickerDialog,
+  Button,
+  Input,
+  Label,
+  Page,
+  PageActionBar,
+  PageActionBarRight,
+  PageBlock,
+  PageLayout,
+  PageTitle,
+  Switch,
+  Textarea,
+  toast,
+  useMutation,
+  usePermissions,
+  useQuery,
+  useQueryClient,
+} from '@vendure/dashboard';
+import { useEffect, useState } from 'react';
+
+import { errorMessage, IssueList, openPdf, UPDATE } from './common';
+import {
+  assetDocument,
+  ChannelSettings,
+  latestOrderDocument,
+  previewDocument,
+  settingsDocument,
+  updateSettingsDocument,
+} from './graphql';
+
+const EMPTY: ChannelSettings = { enabled: false, autoIssue: true, seller: {}, payment: {}, layout: {} };
+
+/** Sets `value` at a dotted path of a copy of `obj`. */
+function setPath<T extends object>(obj: T, path: string, value: unknown): T {
+  const copy: any = structuredClone(obj);
+  const keys = path.split('.');
+  let target = copy;
+  for (const key of keys.slice(0, -1)) target = target[key] ??= {};
+  target[keys[keys.length - 1]] = value;
+  return copy;
+}
+
+const getPath = (obj: unknown, path: string): any => path.split('.').reduce((o: any, k) => o?.[k], obj);
+
+/** Builds the update input: empty strings are sent as null (cleared), so nested objects without content drop out. */
+function toInput(s: ChannelSettings) {
+  const blank = (v: unknown) => v === undefined || v === null || v === '';
+  const clean = (o: Record<string, any> | null | undefined, required: string[] = []) => {
+    if (!o) return null;
+    const out = Object.fromEntries(Object.entries(o).filter(([k, v]) => k !== '__typename' && !blank(v)));
+    return Object.keys(out).length && required.every((k) => !blank(out[k])) ? out : null;
+  };
+  const { seller, payment, layout } = s;
+  return {
+    enabled: s.enabled,
+    autoIssue: s.autoIssue,
+    seller: {
+      ...clean({ name: seller.name, tradingName: seller.tradingName, vatId: seller.vatId, taxNumber: seller.taxNumber, legalInfo: seller.legalInfo }),
+      address: clean(seller.address),
+      contact: clean(seller.contact),
+      electronicAddress: clean(seller.electronicAddress, ['scheme', 'value']),
+      legalRegistration: clean(seller.legalRegistration, ['id']),
+      bank: clean(seller.bank, ['iban']),
+    },
+    payment: { termsText: payment.termsText || null, termDays: payment.termDays ? Number(payment.termDays) : null },
+    layout: clean(layout) ?? {},
+  };
+}
+
+function Field({
+  label,
+  path,
+  value,
+  onChange,
+  hint,
+  multiline,
+  type,
+}: {
+  label: string;
+  path: string;
+  value: ChannelSettings;
+  onChange: (path: string, v: unknown) => void;
+  hint?: string;
+  multiline?: boolean;
+  type?: string;
+}) {
+  const id = `e-invoice-${path}`;
+  const current = getPath(value, path) ?? '';
+  return (
+    <div className="grid gap-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      {multiline ? (
+        <Textarea id={id} value={current} onChange={(e) => onChange(path, e.target.value)} />
+      ) : (
+        <Input
+          id={id}
+          type={type}
+          value={current}
+          onChange={(e) => onChange(path, type === 'number' ? (e.target.value === '' ? null : Number(e.target.value)) : e.target.value)}
+        />
+      )}
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
+
+const grid = 'grid gap-4 md:grid-cols-2';
+
+/** E-invoicing settings of the active channel: seller data, payment terms and the PDF layout. */
+export function SettingsPage() {
+  const queryClient = useQueryClient();
+  const { hasPermissions } = usePermissions();
+  const canUpdate = hasPermissions([UPDATE]);
+  const { data, isLoading } = useQuery({ queryKey: ['e-invoice-settings'], queryFn: () => api.query(settingsDocument) });
+  const [settings, setSettings] = useState<ChannelSettings>(EMPTY);
+  const [assetPicker, setAssetPicker] = useState(false);
+
+  useEffect(() => {
+    if (data) setSettings(data.eInvoiceChannelSettings);
+  }, [data]);
+
+  const logoId = settings.layout.logoAssetId;
+  const logo = useQuery({
+    queryKey: ['e-invoice-logo', logoId],
+    queryFn: () => api.query(assetDocument, { id: logoId as string }),
+    enabled: !!logoId,
+  });
+
+  const change = (path: string, value: unknown) => setSettings((s) => setPath(s, path, value));
+  const fieldProps = { value: settings, onChange: change };
+
+  const save = useMutation({
+    mutationFn: () => api.mutate(updateSettingsDocument, { input: toInput(settings) }),
+    onSuccess: () => {
+      toast.success('Settings saved');
+      return queryClient.invalidateQueries({ queryKey: ['e-invoice-settings'] });
+    },
+    onError: (e) => toast.error('Could not save the settings', { description: errorMessage(e) }),
+  });
+
+  const preview = useMutation({
+    mutationFn: async () => {
+      const { orders } = await api.query(latestOrderDocument);
+      if (!orders.items.length) throw new Error('There is no placed order to preview yet');
+      return api.query(previewDocument, { orderId: orders.items[0].id });
+    },
+    onSuccess: ({ eInvoicePreview }) => {
+      if (eInvoicePreview.issues.length) {
+        toast.warning('The invoice would be blocked', { description: eInvoicePreview.issues.map((i) => i.message).join('\n') });
+      }
+      if (eInvoicePreview.pdf) openPdf(eInvoicePreview.pdf);
+    },
+    onError: (e) => toast.error('Preview failed', { description: errorMessage(e) }),
+  });
+
+  if (isLoading) return null;
+  const setupIssues = data?.eInvoiceSetupStatus ?? [];
+
+  return (
+    <Page pageId="e-invoice-settings">
+      <PageTitle>E-Invoice settings</PageTitle>
+      <PageActionBar>
+        <PageActionBarRight>
+          <Button variant="outline" disabled={preview.isPending} onClick={() => preview.mutate()}>
+            Preview PDF (latest order)
+          </Button>
+          {canUpdate && (
+            <Button disabled={save.isPending} onClick={() => save.mutate()}>
+              Save
+            </Button>
+          )}
+        </PageActionBarRight>
+      </PageActionBar>
+      <PageLayout>
+        {setupIssues.length > 0 && (
+          <PageBlock column="main" blockId="e-invoice-setup-status" title="Before invoices can be issued">
+            <IssueList issues={setupIssues} />
+          </PageBlock>
+        )}
+        <PageBlock column="side" blockId="e-invoice-general" title="General">
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Switch id="e-invoice-enabled" checked={settings.enabled} onCheckedChange={(v: boolean) => change('enabled', v)} />
+              <Label htmlFor="e-invoice-enabled">E-invoicing enabled for this channel</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch id="e-invoice-auto" checked={settings.autoIssue} onCheckedChange={(v: boolean) => change('autoIssue', v)} />
+              <Label htmlFor="e-invoice-auto">Issue invoices automatically (e.g. when the payment is settled)</Label>
+            </div>
+          </div>
+        </PageBlock>
+        <PageBlock column="main" blockId="e-invoice-seller" title="Seller">
+          <div className={grid}>
+            <Field label="Legal name" path="seller.name" {...fieldProps} />
+            <Field label="Trading name" path="seller.tradingName" {...fieldProps} />
+            <Field label="Street" path="seller.address.line1" {...fieldProps} />
+            <Field label="Address line 2" path="seller.address.line2" {...fieldProps} />
+            <Field label="Postal code" path="seller.address.postalCode" {...fieldProps} />
+            <Field label="City" path="seller.address.city" {...fieldProps} />
+            <Field label="Country code" path="seller.address.countryCode" hint="ISO 3166-1, e.g. DE" {...fieldProps} />
+            <Field label="VAT ID" path="seller.vatId" hint="e.g. DE123456789" {...fieldProps} />
+            <Field label="Tax number" path="seller.taxNumber" hint="Steuernummer, if there is no VAT ID" {...fieldProps} />
+            <Field label="Commercial register" path="seller.legalRegistration.id" hint="e.g. HRB 12345, Amtsgericht Berlin" {...fieldProps} />
+            <Field label="Legal information" path="seller.legalInfo" hint="e.g. managing directors" {...fieldProps} />
+          </div>
+        </PageBlock>
+        <PageBlock column="main" blockId="e-invoice-contact" title="Contact and electronic address">
+          <div className={grid}>
+            <Field label="Contact name" path="seller.contact.name" {...fieldProps} />
+            <Field label="Phone" path="seller.contact.phone" {...fieldProps} />
+            <Field label="Email" path="seller.contact.email" {...fieldProps} />
+            <div />
+            <Field label="Electronic address scheme" path="seller.electronicAddress.scheme" hint="EM = email" {...fieldProps} />
+            <Field label="Electronic address" path="seller.electronicAddress.value" hint="Where buyers send e-invoices, e.g. rechnung@example.com" {...fieldProps} />
+          </div>
+        </PageBlock>
+        <PageBlock column="main" blockId="e-invoice-payment" title="Bank account and payment terms">
+          <div className={grid}>
+            <Field label="IBAN" path="seller.bank.iban" {...fieldProps} />
+            <Field label="BIC" path="seller.bank.bic" {...fieldProps} />
+            <Field label="Account holder" path="seller.bank.accountName" {...fieldProps} />
+            <Field label="Payment term (days)" path="payment.termDays" type="number" {...fieldProps} />
+            <Field label="Payment terms text" path="payment.termsText" hint="Used when an amount is due" multiline {...fieldProps} />
+          </div>
+        </PageBlock>
+        <PageBlock column="side" blockId="e-invoice-layout" title="PDF layout">
+          <div className="space-y-3">
+            <div className="grid gap-1.5">
+              <Label>Logo</Label>
+              {logoId && logo.data?.asset && (
+                <img src={logo.data.asset.preview + '?preset=thumb'} alt={logo.data.asset.name} className="h-16 w-auto object-contain" />
+              )}
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => setAssetPicker(true)}>
+                  {logoId ? 'Change' : 'Select'}
+                </Button>
+                {logoId && (
+                  <Button size="sm" variant="ghost" onClick={() => change('layout.logoAssetId', null)}>
+                    Remove
+                  </Button>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">PNG, JPEG or SVG</p>
+            </div>
+            <Field label="Accent color" path="layout.accentColor" hint="Hex, e.g. #1a5fb4" {...fieldProps} />
+            <Field label="Intro text" path="layout.introText" multiline {...fieldProps} />
+            <Field label="Closing text" path="layout.closingText" multiline {...fieldProps} />
+            <Field label="Footer text" path="layout.footerText" multiline {...fieldProps} />
+          </div>
+        </PageBlock>
+      </PageLayout>
+      <AssetPickerDialog
+        open={assetPicker}
+        onClose={() => setAssetPicker(false)}
+        onSelect={(assets: { id: string }[]) => {
+          if (assets[0]) change('layout.logoAssetId', assets[0].id);
+          setAssetPicker(false);
+        }}
+        title="Select a logo"
+      />
+    </Page>
+  );
+}

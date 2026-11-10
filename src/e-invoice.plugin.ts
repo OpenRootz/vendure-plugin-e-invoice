@@ -59,6 +59,8 @@ import { InvoiceService } from './services/invoice.service';
     config.customFields.PaymentMethod.push(...fields.PaymentMethod);
     return config;
   },
+  // Relative to this file: src/ while developing, dist/ when installed; both resolve to the package's dashboard/
+  dashboard: '../dashboard/index.tsx',
   compatibility: '^3.8.0',
 })
 export class EInvoicePlugin implements OnApplicationBootstrap, OnApplicationShutdown {

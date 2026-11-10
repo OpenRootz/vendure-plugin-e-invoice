@@ -91,6 +91,26 @@ export const adminApiExtensions = gql`
     orderCode: String!
     "Result of the runtime validation, if enabled (option validation.mode)"
     validation: EInvoiceValidation
+    "Invoices with a number: what can still be credited"
+    creditable: EInvoiceCreditable
+  }
+
+  type EInvoiceCreditableLine {
+    "Null for lines that are not order lines"
+    orderLineId: ID
+    name: String!
+    sku: String
+    invoicedQuantity: Int!
+    remainingQuantity: Int!
+    "Gross amount of the remaining quantity"
+    remainingGross: Money!
+  }
+
+  type EInvoiceCreditable {
+    lines: [EInvoiceCreditableLine!]!
+    "Gross amount of shipping and surcharges not credited yet"
+    chargesGross: Money!
+    remainingTotal: Money!
   }
 
   type EInvoiceValidationMessage {

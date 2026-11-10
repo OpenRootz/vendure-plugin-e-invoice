@@ -17,6 +17,8 @@ import { loggerCtx, PLUGIN_INIT_OPTIONS } from '../constants';
 import {
   buildCreditNote,
   checkModel,
+  CreditableSummary,
+  creditableSummary,
   CreditNoteError,
   CreditNoteRequest,
   EInvoiceModel,
@@ -205,6 +207,12 @@ export class CreditNoteService {
       fallbackThreshold: this.options.roundingFallbackThreshold,
       settlement: options.settlement,
     });
+  }
+
+  /** What of an invoice can still be credited; `undefined` for credit notes and documents without snapshot. */
+  async creditable(ctx: RequestContext, invoice: EInvoice): Promise<CreditableSummary | undefined> {
+    if (invoice.type !== 'invoice' || !invoice.model || !invoice.number) return undefined;
+    return creditableSummary(invoice.model, await this.previousModels(ctx, invoice));
   }
 
   private async previousModels(ctx: RequestContext, invoice: EInvoice): Promise<EInvoiceModel[]> {

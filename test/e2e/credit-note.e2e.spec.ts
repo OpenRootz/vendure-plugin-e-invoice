@@ -233,6 +233,39 @@ describe('Credit notes', () => {
       expect(tooMuch).toContain('exceeds what is left to credit');
     });
 
+    it('shows what can still be credited per line', async () => {
+      const { lines } = await getOrder(order.id);
+      const coffee = lines.find((l) => l.productVariant.sku === 'KAF-500')!;
+      const { eInvoice } = await adminClient.query(
+        gql`
+          query ($id: ID!) {
+            eInvoice(id: $id) {
+              creditable {
+                remainingTotal
+                chargesGross
+                lines {
+                  orderLineId
+                  sku
+                  invoicedQuantity
+                  remainingQuantity
+                  remainingGross
+                }
+              }
+            }
+          }
+        `,
+        { id: invoice.id },
+      );
+      expect(eInvoice.creditable).toMatchObject({ remainingTotal: invoice.totalWithTax - 1000 - 1190, chargesGross: 583 });
+      expect(eInvoice.creditable.lines).toContainEqual({
+        orderLineId: coffee.id,
+        sku: 'KAF-500',
+        invoicedQuantity: 2,
+        remainingQuantity: 1,
+        remainingGross: 1190,
+      });
+    });
+
     it('credits the remaining amount when the order is cancelled', async () => {
       const { cancelOrder } = await adminClient.query(
         gql`

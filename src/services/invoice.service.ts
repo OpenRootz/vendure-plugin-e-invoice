@@ -266,6 +266,10 @@ export class InvoiceService implements OnApplicationBootstrap {
     return this.creditNotes.remainingAmount(ctx, invoice);
   }
 
+  creditable(ctx: RequestContext, invoice: EInvoice) {
+    return this.creditNotes.creditable(ctx, invoice);
+  }
+
   creditNotesOf(ctx: RequestContext, invoiceId: ID) {
     return this.creditNotes.creditNotesOf(ctx, invoiceId);
   }

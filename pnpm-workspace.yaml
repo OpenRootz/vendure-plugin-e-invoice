@@ -6,4 +6,5 @@ allowBuilds:
   '@apollo/protobufjs': false
   '@swc/core': true
   bcrypt: true
+  esbuild: true
   re2: true
