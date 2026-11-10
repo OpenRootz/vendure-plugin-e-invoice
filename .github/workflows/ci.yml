@@ -42,7 +42,7 @@ jobs:
             db: postgres
     services:
       postgres:
-        image: ${{ matrix.db == 'postgres' && 'postgres:17-alpine' || '' }}
+        image: ${{ matrix.db == 'postgres' && 'postgres:18-alpine' || '' }}
         env:
           POSTGRES_USER: vendure
           POSTGRES_PASSWORD: vendure
