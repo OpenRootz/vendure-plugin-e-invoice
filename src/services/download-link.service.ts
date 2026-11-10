@@ -10,6 +10,9 @@ import { ResolvedEInvoicePluginOptions } from '../options';
 /** Path of the download routes, relative to the server root. */
 export const DOWNLOAD_ROUTE = 'e-invoice';
 
+/** Upper bound for one ZIP download. */
+export const MAX_ZIP_INVOICES = 500;
+
 export type LinkAudience = 'guest' | 'owner' | 'admin';
 
 export type SignedPayload = { kind: 'file'; invoiceId: ID; format?: EInvoiceFormat } | { kind: 'zip'; invoiceIds: ID[] };
