@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { RequestContext, TaxRate, TransactionalConnection } from '@vendure/core';
+import { Asset, RequestContext, TaxRate, TransactionalConnection, UserInputError } from '@vendure/core';
 
 import { PLUGIN_INIT_OPTIONS } from '../constants';
 import { checkSeller } from '../core';
@@ -22,6 +22,11 @@ export interface SetupIssue {
   /** e.g. `seller.vatId` or `taxRate:12` */
   path?: string;
 }
+
+/** Longest text field of a layout (intro, closing and footer text, custom text blocks). */
+export const MAX_LAYOUT_TEXT = 2000;
+/** Logos above this size are rejected (also enforced by the preview). */
+export const MAX_LOGO_BYTES = 2 * 1024 * 1024;
 
 const EXEMPT_CATEGORIES = ['E', 'AE', 'K', 'G', 'O'];
 const ZERO_RATE_CATEGORIES = ['Z', 'E', 'AE', 'K', 'G', 'O'];
@@ -50,8 +55,22 @@ export class ChannelSettingsService {
     if (input.autoIssue !== undefined && input.autoIssue !== null) settings.autoIssue = input.autoIssue;
     if (input.seller) settings.seller = compact(input.seller);
     if (input.payment) settings.payment = compact(input.payment);
-    if (input.layout) settings.layout = compact(input.layout);
+    if (input.layout) {
+      const layout = compact(input.layout);
+      await this.assertValidLayout(ctx, layout);
+      settings.layout = layout;
+    }
     return this.connection.getRepository(ctx, EInvoiceChannelSettings).save(settings);
+  }
+
+  /** Rejects layouts with oversized texts or logos (`UserInputError`). Used on save and by the preview. */
+  async assertValidLayout(ctx: RequestContext, layout: LayoutSettings): Promise<void> {
+    const problems = layoutTextProblems(layout);
+    if (layout.logoAssetId) {
+      const asset = await this.connection.getRepository(ctx, Asset).findOne({ where: { id: layout.logoAssetId } });
+      if (asset && asset.fileSize > MAX_LOGO_BYTES) problems.push(`The logo is larger than ${MAX_LOGO_BYTES / 1024 / 1024} MB`);
+    }
+    if (problems.length) throw new UserInputError(`Invalid layout: ${problems.join('; ')}`);
   }
 
   /**
@@ -111,8 +130,15 @@ export class ChannelSettingsService {
   }
 }
 
+/** Text fields longer than {@link MAX_LAYOUT_TEXT}. */
+export function layoutTextProblems(layout: LayoutSettings): string[] {
+  return (['introText', 'closingText', 'footerText'] as const)
+    .filter((k) => (layout[k]?.length ?? 0) > MAX_LAYOUT_TEXT)
+    .map((k) => `${k} is longer than ${MAX_LAYOUT_TEXT} characters`);
+}
+
 /** Drops null, undefined and empty-string values (GraphQL inputs send `null` for cleared fields). */
-function compact<T>(value: T): T {
+export function compact<T>(value: T): T {
   if (Array.isArray(value)) return value.map(compact) as T;
   if (value && typeof value === 'object') {
     const out: Record<string, unknown> = {};

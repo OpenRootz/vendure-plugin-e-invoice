@@ -29,6 +29,8 @@ export function createConfig(
     logger: new DefaultLogger({ level: LogLevel.Error }),
     paymentOptions: { paymentMethodHandlers: [dummyPaymentHandler] },
     ...(usePostgres ? { dbConnectionOptions: postgresConnection } : {}),
+    // `TEST_PORT` lets the e2e suites run next to the dev server (which uses the default port)
+    ...(process.env.TEST_PORT ? { apiOptions: { port: Number(process.env.TEST_PORT) } } : {}),
     plugins: [EInvoicePlugin.init({ secret: TEST_SECRET, ...options })],
     ...overrides,
   });

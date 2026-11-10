@@ -4,11 +4,11 @@ import { createHash } from 'crypto';
 
 import { loggerCtx, PLUGIN_INIT_OPTIONS } from '../constants';
 import { EInvoiceFormat, EInvoiceModel, pdfLabels, PdfTemplateInput, renderZugferdPdf, toCii, toUbl } from '../core';
-import { EInvoice, EInvoiceFile, ValidationSummary } from '../entities';
+import { EInvoice, EInvoiceFile, LayoutSettings, ValidationSummary } from '../entities';
 import { EInvoiceFailedEvent, EInvoiceIssuedEvent } from '../events';
 import { ResolvedEInvoicePluginOptions } from '../options';
 
-import { ChannelSettingsService } from './channel-settings.service';
+import { ChannelSettingsService, MAX_LOGO_BYTES } from './channel-settings.service';
 
 export interface RenderedFile {
   format: EInvoiceFormat;
@@ -31,6 +31,22 @@ export class ValidationFailedError extends Error {
 /** Keep the stored summary small */
 const MAX_MESSAGES = 50;
 
+const LOGO_CACHE_SIZE = 8;
+
+export interface RenderPdfOptions {
+  /** Draft layout (preview); replaces the saved layout */
+  layout?: LayoutSettings;
+  /** Skip logos larger than {@link MAX_LOGO_BYTES} and report them */
+  enforceLogoLimit?: boolean;
+}
+
+export interface RenderedPdf {
+  pdf: Buffer;
+  pageCount: number;
+  /** Problems with the layout resources, e.g. a logo that could not be used */
+  issues: { code: string; message: string; path?: string }[];
+}
+
 /**
  * Phase 2: renders the files of a PENDING (or FAILED) invoice from its snapshot and stores them.
  * The order is never read here, so a retry produces the same document data.
@@ -44,6 +60,9 @@ export class InvoiceRenderService {
     private eventBus: EventBus,
     private settings: ChannelSettingsService,
   ) {}
+
+  /** Logo bytes by asset id and update time, so repeated previews don't re-read the asset storage. */
+  private logoCache = new Map<string, PdfTemplateInput['logo']>();
 
   async render(ctx: RequestContext, invoiceId: ID): Promise<EInvoice | undefined> {
     const repo = this.connection.getRepository(ctx, EInvoice);
@@ -156,40 +175,77 @@ export class InvoiceRenderService {
   }
 
   /** ZUGFeRD PDF: the layout from the PDF strategy, the CII XML embedded. */
-  async renderPdf(ctx: RequestContext, model: EInvoiceModel): Promise<Buffer> {
-    const settings = await this.settings.get(ctx);
+  async renderPdf(ctx: RequestContext, model: EInvoiceModel, options?: RenderPdfOptions): Promise<Buffer> {
+    return (await this.renderPdfDetailed(ctx, model, options)).pdf;
+  }
+
+  /** {@link renderPdf} with the page count and resource problems (for the preview). */
+  async renderPdfDetailed(ctx: RequestContext, model: EInvoiceModel, options: RenderPdfOptions = {}): Promise<RenderedPdf> {
+    const layout = options.layout ?? (await this.settings.get(ctx)).layout;
     const labels = pdfLabels(model.language, this.options.pdf.translations);
+    const issues: RenderedPdf['issues'] = [];
     const input: PdfTemplateInput = {
       model,
       labels,
-      layout: settings.layout,
-      logo: settings.layout.logoAssetId ? await this.loadLogo(ctx, settings.layout.logoAssetId) : undefined,
+      layout,
+      logo: layout.logoAssetId ? await this.loadLogo(ctx, layout.logoAssetId, options.enforceLogoLimit ? issues : undefined) : undefined,
     };
     const definition = await this.options.pdfStrategy.buildDocDefinition(ctx, input);
-    return renderZugferdPdf({
+    const pdf = await renderZugferdPdf({
       model,
       xml: toCii(model, 'zugferd'),
       definition,
       title: `${model.type === 'credit_note' ? labels.creditNote : labels.invoice} ${model.number}`,
       fonts: this.options.pdf.fonts,
     });
+    return { pdf, pageCount: countPages(pdf), issues };
   }
 
-  /** Reads the logo asset from the asset storage. PNG and JPEG are embedded as images, SVG as vector graphic. */
-  private async loadLogo(ctx: RequestContext, assetId: ID): Promise<PdfTemplateInput['logo']> {
+  /**
+   * Reads the logo asset from the asset storage. PNG and JPEG are embedded as images, SVG as vector graphic.
+   * With `issues`, logos above {@link MAX_LOGO_BYTES} are skipped and reported there.
+   */
+  private async loadLogo(ctx: RequestContext, assetId: ID, issues?: RenderedPdf['issues']): Promise<PdfTemplateInput['logo']> {
     const asset = await this.connection.getRepository(ctx, Asset).findOne({ where: { id: assetId } });
+    const report = (code: string, message: string) => {
+      issues?.push({ code, message, path: 'layout.logoAssetId' });
+      Logger.warn(message, loggerCtx);
+    };
     if (!asset) {
-      Logger.warn(`Logo asset ${assetId} not found; rendering without logo`, loggerCtx);
+      report('LOGO_NOT_FOUND', `Logo asset ${assetId} not found; rendering without logo`);
       return undefined;
     }
-    const data = await this.configService.assetOptions.assetStorageStrategy.readFileToBuffer(asset.source);
-    if (asset.mimeType === 'image/png' || asset.mimeType === 'image/jpeg') {
-      return { dataUrl: `data:${asset.mimeType};base64,${data.toString('base64')}` };
+    if (issues && asset.fileSize > MAX_LOGO_BYTES) {
+      report('LOGO_TOO_LARGE', `The logo is larger than ${MAX_LOGO_BYTES / 1024 / 1024} MB; use a smaller image`);
+      return undefined;
     }
-    if (asset.mimeType === 'image/svg+xml') return { svg: data.toString('utf8') };
-    Logger.warn(`Logo asset ${assetId} has unsupported type ${asset.mimeType} (use PNG, JPEG or SVG)`, loggerCtx);
-    return undefined;
+    const key = `${asset.id}:${asset.updatedAt?.getTime?.() ?? ''}:${asset.source}`;
+    if (this.logoCache.has(key)) {
+      const cached = this.logoCache.get(key);
+      // Refresh the LRU position
+      this.logoCache.delete(key);
+      this.logoCache.set(key, cached);
+      return cached;
+    }
+    const data = await this.configService.assetOptions.assetStorageStrategy.readFileToBuffer(asset.source);
+    let logo: PdfTemplateInput['logo'];
+    if (asset.mimeType === 'image/png' || asset.mimeType === 'image/jpeg') {
+      logo = { dataUrl: `data:${asset.mimeType};base64,${data.toString('base64')}` };
+    } else if (asset.mimeType === 'image/svg+xml') {
+      logo = { svg: data.toString('utf8') };
+    } else {
+      report('LOGO_UNSUPPORTED_TYPE', `Logo asset ${assetId} has unsupported type ${asset.mimeType} (use PNG, JPEG or SVG)`);
+      return undefined;
+    }
+    this.logoCache.set(key, logo);
+    if (this.logoCache.size > LOGO_CACHE_SIZE) this.logoCache.delete(this.logoCache.keys().next().value as string);
+    return logo;
   }
+}
+
+/** Number of pages of a PDF produced by pdfkit (page objects are written uncompressed). */
+export function countPages(pdf: Buffer): number {
+  return (pdf.toString('latin1').match(/\/Type \/Page\b(?!s)/g) ?? []).length;
 }
 
 /** File names are derived from the invoice number; characters that are unsafe in file names are replaced. */

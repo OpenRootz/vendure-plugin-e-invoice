@@ -2,6 +2,7 @@ import { defineDashboardExtension } from '@vendure/dashboard';
 
 import { READ } from './common';
 import { InvoiceListPage } from './invoice-list';
+import { LayoutPage } from './layout-page';
 import { OrderInvoicesBlock } from './order-invoices-block';
 import { SettingsPage } from './settings-page';
 
@@ -24,6 +25,18 @@ defineDashboardExtension({
         requiresPermission: READ,
       },
       component: () => <SettingsPage />,
+    },
+    {
+      path: '/e-invoices/layout',
+      loader: () => ({ breadcrumb: [{ path: '/e-invoices/settings', label: 'E-Invoices' }, 'Invoice layout'] }),
+      navMenuItem: {
+        sectionId: 'settings',
+        id: 'e-invoice-layout',
+        title: 'Invoice layout',
+        url: '/e-invoices/layout',
+        requiresPermission: READ,
+      },
+      component: () => <LayoutPage />,
     },
   ],
   pageBlocks: [

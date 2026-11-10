@@ -13,5 +13,5 @@
       "@/vdb/*": ["../node_modules/@vendure/dashboard/src/lib/*"]
     }
   },
-  "include": ["*.ts", "*.tsx", "../node_modules/@vendure/dashboard/src/lib/virtual.d.ts"]
+  "include": ["**/*.ts", "**/*.tsx", "../node_modules/@vendure/dashboard/src/lib/virtual.d.ts"]
 }

@@ -225,6 +225,7 @@ Permissions: `CreateEInvoice`, `ReadEInvoice`, `UpdateEInvoice` (retry, void, se
 | `eInvoices(options)` | list with filters and sorting (incl. `type`, `status`, `orderCode`) |
 | `eInvoice(id)`, `Order.eInvoices` | documents incl. files, issues, credit notes, `remainingAmount`, `creditable`, `validation` |
 | `eInvoicePreview(orderId)` | the PDF the order would get now, with a draft number; nothing is saved |
+| `eInvoiceLayoutPreview(input)` | renders an unsaved layout (and unsaved seller data) with sample data or an order; returns the PDF, page count and issues |
 | `eInvoiceSetupStatus` | what is missing in the channel |
 | `eInvoiceChannelSettings` / `updateEInvoiceChannelSettings` | seller, payment terms, layout |
 | `createEInvoice(orderId)` | manual invoice; returns a BLOCKED invoice with `issues` if data is missing |
@@ -283,7 +284,9 @@ The plugin ships an extension for the React dashboard (`@vendure/dashboard`), co
   cancel & reissue, retry, void, copy guest link, PDF preview). Blocked invoices list their problems with links to
   where they are fixed.
 - **Sales → E-Invoices**: list with filters and ZIP download of the selection.
-- **Settings → E-Invoices**: seller data, bank account, payment terms, logo and texts, setup status, PDF preview.
+- **Settings → E-Invoices**: seller data, bank account, payment terms, setup status, PDF preview with sample data.
+- **Settings → Invoice layout**: logo, accent color and texts with a live preview of the real PDF (sample invoices
+  or the latest order), re-rendered while you type.
 - The custom fields appear in the `E-Invoice` tab of orders, customers, tax rates and payment methods.
 
 No extra configuration is needed: `vendureDashboardPlugin` finds the extension through the plugin metadata.

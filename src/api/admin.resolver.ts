@@ -2,11 +2,12 @@ import { Args, Mutation, Parent, Query, ResolveField, Resolver } from '@nestjs/g
 import { Allow, Ctx, ID, ListQueryOptions, Order, OrderService, RequestContext, UserInputError } from '@vendure/core';
 
 import { eInvoicePermission } from '../constants';
-import { EInvoiceFormat } from '../core';
+import { EInvoiceFormat, SampleKind } from '../core';
 import { EInvoice, EInvoiceFile } from '../entities';
 import { ChannelSettingsService, UpdateChannelSettingsInput } from '../services/channel-settings.service';
 import { DownloadLinkService } from '../services/download-link.service';
 import { InvoiceService, ManualCreditNoteInput } from '../services/invoice.service';
+import { LayoutPreviewInput, LayoutPreviewService } from '../services/layout-preview.service';
 
 export const formatEnum = (f: EInvoiceFormat) => f.toUpperCase().replace(/-/g, '_');
 export const formatFromEnum = (f: string) => f.toLowerCase().replace(/_/g, '-') as EInvoiceFormat;
@@ -34,6 +35,7 @@ export class EInvoiceAdminResolver {
     private invoices: InvoiceService,
     private settings: ChannelSettingsService,
     private links: DownloadLinkService,
+    private layoutPreview: LayoutPreviewService,
   ) {}
 
   @Query()
@@ -53,6 +55,13 @@ export class EInvoiceAdminResolver {
   @Allow(eInvoicePermission.Read)
   eInvoicePreview(@Ctx() ctx: RequestContext, @Args() args: { orderId: ID }) {
     return this.invoices.preview(ctx, args.orderId);
+  }
+
+  @Query()
+  @Allow(eInvoicePermission.Read)
+  eInvoiceLayoutPreview(@Ctx() ctx: RequestContext, @Args() args: { input: Omit<LayoutPreviewInput, 'sample'> & { sample?: string | null } }) {
+    const { sample, ...input } = args.input;
+    return this.layoutPreview.preview(ctx, { ...input, sample: sample ? (sample.toLowerCase().replace(/_/g, '-') as SampleKind) : undefined });
   }
 
   @Query()

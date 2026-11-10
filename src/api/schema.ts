@@ -162,6 +162,40 @@ export const adminApiExtensions = gql`
     issues: [EInvoiceIssue!]!
   }
 
+  enum EInvoiceSample {
+    "Business buyer, net prices, amount due, shipping and delivery address"
+    B2B_NET
+    "Consumer, gross prices, paid in advance"
+    B2C_GROSS
+    "Partial credit note referencing an invoice"
+    CREDIT_NOTE
+    "40 lines: page breaks and following pages"
+    MANY_LINES
+    "Longest realistic content: long names and addresses, all details, three VAT rates"
+    WORST_CASE
+  }
+
+  input EInvoiceLayoutPreviewInput {
+    "Unsaved layout; omitted = saved layout"
+    layout: EInvoiceLayoutInput
+    "Unsaved seller data (settings page); omitted = saved"
+    seller: EInvoiceSellerSettingsInput
+    "Unsaved payment settings; omitted = saved"
+    payment: EInvoicePaymentSettingsInput
+    "Render this order instead of sample data"
+    orderId: ID
+    sample: EInvoiceSample = B2B_NET
+    "Language of the labels and sample texts; default: the channel language"
+    language: String
+  }
+
+  type EInvoiceLayoutPreview {
+    "The ZUGFeRD PDF as a data URL; null if it could not be rendered"
+    pdf: String
+    pageCount: Int!
+    issues: [EInvoiceIssue!]!
+  }
+
   input EInvoiceCreditNoteLineInput {
     orderLineId: ID!
     quantity: Int!
@@ -343,6 +377,8 @@ export const adminApiExtensions = gql`
     eInvoiceSetupStatus: [EInvoiceIssue!]!
     "Renders the invoice the order would get now, with a draft number. Nothing is saved and no number is used."
     eInvoicePreview(orderId: ID!): EInvoicePreview!
+    "Renders a draft layout with sample data (or an order) through the real PDF pipeline. Nothing is saved."
+    eInvoiceLayoutPreview(input: EInvoiceLayoutPreviewInput!): EInvoiceLayoutPreview!
   }
 
   extend type Mutation {

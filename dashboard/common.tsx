@@ -40,6 +40,7 @@ function issueTarget(path?: string | null): string | undefined {
   if (!path) return undefined;
   const taxRate = /^taxRate:(.+)$/.exec(path);
   if (taxRate) return `/tax-rates/${taxRate[1]}`;
+  if (path.startsWith('layout')) return '/e-invoices/layout';
   if (path === 'enabled' || path.startsWith('seller') || path.startsWith('payment')) return '/e-invoices/settings';
   return undefined;
 }

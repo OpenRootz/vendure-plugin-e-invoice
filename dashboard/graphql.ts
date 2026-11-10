@@ -253,6 +253,37 @@ export const previewDocument = doc<{ eInvoicePreview: { pdf: string | null; issu
   }
 `);
 
+export type EInvoiceSample = 'B2B_NET' | 'B2C_GROSS' | 'CREDIT_NOTE' | 'MANY_LINES' | 'WORST_CASE';
+
+export interface LayoutPreview {
+  pdf: string | null;
+  pageCount: number;
+  issues: EInvoiceIssue[];
+}
+
+export interface LayoutPreviewInput {
+  layout?: unknown;
+  seller?: unknown;
+  payment?: unknown;
+  orderId?: string;
+  sample?: EInvoiceSample;
+  language?: string;
+}
+
+export const layoutPreviewDocument = doc<{ eInvoiceLayoutPreview: LayoutPreview }, { input: LayoutPreviewInput }>(`
+  query EInvoiceLayoutPreview($input: EInvoiceLayoutPreviewInput!) {
+    eInvoiceLayoutPreview(input: $input) {
+      pdf
+      pageCount
+      issues {
+        code
+        message
+        path
+      }
+    }
+  }
+`);
+
 export const latestOrderDocument = doc<{ orders: { items: { id: string; code: string }[] } }>(`
   query EInvoiceLatestOrder {
     orders(options: { take: 1, sort: { orderPlacedAt: DESC }, filter: { active: { eq: false } } }) {

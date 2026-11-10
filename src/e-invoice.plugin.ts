@@ -25,6 +25,7 @@ import { NoopValidator } from './strategies/validator';
 import { InvoiceNumberService } from './services/invoice-number.service';
 import { InvoiceRenderService } from './services/invoice-render.service';
 import { InvoiceService } from './services/invoice.service';
+import { LayoutPreviewService } from './services/layout-preview.service';
 
 @VendurePlugin({
   imports: [PluginCommonModule],
@@ -38,6 +39,7 @@ import { InvoiceService } from './services/invoice.service';
     CreditNoteService,
     InvoiceService,
     DownloadLinkService,
+    LayoutPreviewService,
   ],
   controllers: [EInvoiceDownloadController],
   adminApiExtensions: {

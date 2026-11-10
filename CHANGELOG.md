@@ -19,3 +19,5 @@ First release.
 - Optional runtime validation (`KositHttpValidator`, report or enforce)
 - Storage in the database (default), a local directory or S3
 - Dashboard extension: invoices on the order page, credit note dialog, invoice list, settings page
+- Live layout preview: `eInvoiceLayoutPreview` renders an unsaved layout with sample invoices (business, consumer,
+  credit note, many lines, worst case) or an order, without saving anything; layout page in the dashboard
