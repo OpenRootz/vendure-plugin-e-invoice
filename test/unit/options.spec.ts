@@ -29,6 +29,15 @@ describe('download link options', () => {
     expect(() => parseDuration(0)).toThrow(/positive number/);
   });
 
+  it('rejects a base URL that is not a plain http(s) URL', () => {
+    for (const baseUrl of ['shop.example.com', 'javascript:alert(1)', 'https://shop.example.com/?x=1', 'https://shop.example.com#a']) {
+      expect(() => resolveOptions({ secret: 'x'.repeat(32), downloadLinks: { baseUrl } })).toThrow(/baseUrl/);
+    }
+    expect(resolveOptions({ secret: 'x'.repeat(32), downloadLinks: { baseUrl: 'http://localhost:3000/shop' } }).downloadLinks.baseUrl).toBe(
+      'http://localhost:3000/shop',
+    );
+  });
+
   it('applies defaults and trims the base URL', () => {
     const o = resolveOptions({ secret: 'x'.repeat(32), downloadLinks: { guestTtl: '2d', baseUrl: 'https://shop.example.com/' } });
     expect(o.downloadLinks).toEqual({ guestTtl: 172800, ownerTtl: 3600, adminTtl: 900, baseUrl: 'https://shop.example.com' });

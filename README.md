@@ -235,7 +235,9 @@ Roboto (Latin, Greek, Cyrillic). A layout can pick one of them as `theme.font`.
 
 ### Admin API
 
-Permissions: `CreateEInvoice`, `ReadEInvoice`, `UpdateEInvoice` (retry, void, settings).
+Permissions: `CreateEInvoice`, `ReadEInvoice`, `UpdateEInvoice` (retry, void, settings). `ReadEInvoice` does not
+grant access to orders: `eInvoicePreview`, `eInvoiceLayoutPreview` with an `orderId` and the `EInvoice.order` field
+also need `ReadOrder` (without it, `order` is `null`).
 
 | Query / mutation | |
 |---|---|
@@ -280,7 +282,13 @@ GraphQL API checks permissions or ownership and returns a link signed with HMAC-
 expiry and channel token; the route only verifies the signature, so plain `<a href>` links work. Expired links
 answer `410`, invalid ones `403`. Files are checked against their SHA-256 before they are sent.
 
-Behind a proxy, or when creating links outside a request (e.g. in an email handler), set `downloadLinks.baseUrl`.
+Set `downloadLinks.baseUrl` in production. Without it, links are built from the `Host` header of the request,
+which a client can choose freely unless your proxy overwrites it; the plugin logs a warning the first time this
+happens. It is also required behind a proxy and when creating links outside a request (e.g. in an email handler).
+
+The download route is public (the signature is the authorization). It answers with `Cache-Control: private,
+no-store`, `Content-Disposition: attachment`, `X-Content-Type-Options: nosniff`, a sandboxing
+`Content-Security-Policy` and `Referrer-Policy: no-referrer`.
 To put a link into your order confirmation email, listen for `EInvoiceIssuedEvent` and use `DownloadLinkService`:
 
 ```ts

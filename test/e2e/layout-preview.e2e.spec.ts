@@ -94,6 +94,27 @@ const CREATE_ADMIN = gql`
   }
 `;
 
+const ORDER_PREVIEW = gql`
+  query ($orderId: ID!) {
+    eInvoicePreview(orderId: $orderId) {
+      pdf
+    }
+  }
+`;
+
+const INVOICE_WITH_ORDER = gql`
+  query ($id: ID!) {
+    eInvoice(id: $id) {
+      id
+      orderCode
+      order {
+        id
+        code
+      }
+    }
+  }
+`;
+
 const { seller, payment } = SELLER_SETTINGS;
 const bytes = (dataUrl: string) => Buffer.from(dataUrl.split(',')[1], 'base64');
 const errorOf = (p: Promise<unknown>) => p.then(() => 'no error').catch((e: Error) => e.message);
@@ -246,6 +267,31 @@ describe('Layout preview', () => {
     expect(footer.props).toMatchObject({ text: 'Fuß', pageNumber: true });
     const { eInvoiceLayoutPreview } = await adminClient.query(LAYOUT_PREVIEW, { input: {} });
     expect(eInvoiceLayoutPreview.pdf).toBeTruthy();
+  });
+
+  it('does not expose orders to users without the ReadOrder permission', async () => {
+    const order = await placeOrder(shopClient, { items: [{ sku: 'KAF-500', quantity: 1 }] });
+    const { createEInvoice } = await adminClient.query(CREATE_INVOICE, { orderId: order.id });
+    const { createRole } = await adminClient.query(CREATE_ROLE, {
+      input: { code: 'invoices-only', description: 'Invoices only', permissions: ['ReadEInvoice'], channelIds: ['1'] },
+    });
+    await adminClient.query(CREATE_ADMIN, {
+      input: { firstName: 'Only', lastName: 'Invoices', emailAddress: 'invonly@example.com', password: 'secret', roleIds: [createRole.id] },
+    });
+    await adminClient.asUserWithCredentials('invonly@example.com', 'secret');
+    try {
+      const forbidden = /not currently authorized/;
+      expect(await errorOf(adminClient.query(LAYOUT_PREVIEW, { input: { orderId: order.id } }))).toMatch(forbidden);
+      expect(await errorOf(adminClient.query(ORDER_PREVIEW, { orderId: order.id }))).toMatch(forbidden);
+      // Sample data and the invoice itself stay readable; the order is not
+      expect((await adminClient.query(LAYOUT_PREVIEW, { input: {} })).eInvoiceLayoutPreview.pdf).toBeTruthy();
+      const { eInvoice } = await adminClient.query(INVOICE_WITH_ORDER, { id: createEInvoice.id });
+      expect(eInvoice).toMatchObject({ id: createEInvoice.id, orderCode: order.code, order: null });
+    } finally {
+      await adminClient.asSuperAdmin();
+    }
+    const { eInvoice } = await adminClient.query(INVOICE_WITH_ORDER, { id: createEInvoice.id });
+    expect(eInvoice.order).toEqual({ id: order.id, code: order.code });
   });
 
   it('requires the ReadEInvoice permission', async () => {

@@ -54,6 +54,15 @@ describe('ZUGFeRD PDF', () => {
     expect(pdf.length).toBeGreaterThan(1000);
   });
 
+  it('never reads local files referenced by an SVG logo', async () => {
+    const model = scenarios[0].model;
+    const target = path.join(OUT, 'secret.png');
+    fs.copyFileSync(path.join(__dirname, '../../fixtures/logo.png'), target);
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="120" height="40"><image href="${target}" width="120" height="40"/></svg>`;
+    const definition = defaultTemplate({ model, labels: pdfLabels('de'), logo: { svg } });
+    await expect(renderZugferdPdf({ model, xml: toCii(model, 'zugferd'), definition, title: 'x' })).rejects.toThrow(/denied/);
+  });
+
   it('is deterministic', async () => {
     const model = scenarios[0].model;
     expect(sha(await render(model))).toBe(sha(await render(model)));

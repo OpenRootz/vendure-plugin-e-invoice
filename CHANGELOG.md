@@ -25,3 +25,13 @@ First release.
   layout checks for §14 UStG content, clipping (against a worst-case sample), page bounds, overlaps, the DIN 5008
   window and readability; presets; the editor renders the real PDF with pdf.js. Layouts from the channel settings
   (accent color, texts) are converted automatically. `PdfTemplateInput.layout` is now the layout document.
+
+### Security
+
+- `eInvoicePreview`, `eInvoiceLayoutPreview` with an `orderId` and `EInvoice.order` require `ReadOrder` in
+  addition to `ReadEInvoice`; `EInvoice.order` is nullable and `null` without it
+- The download routes reject malformed IDs and repeated query parameters before querying the database (they
+  could cause `500` responses), and send `Content-Security-Policy: default-src 'none'; sandbox` and
+  `Referrer-Policy: no-referrer`
+- `downloadLinks.baseUrl` must be an http(s) URL; a warning is logged when links are built from the `Host` header
+- CI runs with a read-only `GITHUB_TOKEN`

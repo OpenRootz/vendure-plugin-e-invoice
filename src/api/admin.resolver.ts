@@ -1,5 +1,5 @@
 import { Args, Mutation, Parent, Query, ResolveField, Resolver } from '@nestjs/graphql';
-import { Allow, Ctx, ID, ListQueryOptions, Order, OrderService, RequestContext, UserInputError } from '@vendure/core';
+import { Allow, Ctx, ForbiddenError, ID, ListQueryOptions, Order, OrderService, Permission, RequestContext, UserInputError } from '@vendure/core';
 
 import { eInvoicePermission } from '../constants';
 import { EInvoiceFormat, LayoutPreset, layoutPreset, SampleKind, v1Fields } from '../core';
@@ -14,6 +14,13 @@ export const formatEnum = (f: EInvoiceFormat) => f.toUpperCase().replace(/-/g, '
 export const formatFromEnum = (f: string) => f.toLowerCase().replace(/_/g, '-') as EInvoiceFormat;
 
 type Filter = Record<string, unknown> & { _and?: Filter[]; _or?: Filter[] };
+
+/** `ReadEInvoice` alone does not grant access to orders: everything that reads an order also needs `ReadOrder`. */
+const canReadOrders = (ctx: RequestContext) => ctx.userHasPermissions([Permission.ReadOrder]);
+
+function assertCanReadOrders(ctx: RequestContext) {
+  if (!canReadOrders(ctx)) throw new ForbiddenError();
+}
 
 /** The API exposes `type` as an enum (INVOICE), the entity stores `invoice`: translate the filter values. */
 function translateTypeFilter(filter: Filter | undefined): Filter | undefined {
@@ -55,6 +62,7 @@ export class EInvoiceAdminResolver {
   @Query()
   @Allow(eInvoicePermission.Read)
   eInvoicePreview(@Ctx() ctx: RequestContext, @Args() args: { orderId: ID }) {
+    assertCanReadOrders(ctx);
     return this.invoices.preview(ctx, args.orderId);
   }
 
@@ -62,6 +70,7 @@ export class EInvoiceAdminResolver {
   @Allow(eInvoicePermission.Read)
   eInvoiceLayoutPreview(@Ctx() ctx: RequestContext, @Args() args: { input: Omit<LayoutPreviewInput, 'sample'> & { sample?: string | null } }) {
     const { sample, ...input } = args.input;
+    if (input.orderId) assertCanReadOrders(ctx);
     return this.layoutPreview.preview(ctx, { ...input, sample: sample ? (sample.toLowerCase().replace(/_/g, '-') as SampleKind) : undefined });
   }
 
@@ -167,6 +176,7 @@ export class EInvoiceEntityResolver {
 
   @ResolveField()
   async order(@Ctx() ctx: RequestContext, @Parent() invoice: EInvoice) {
+    if (!canReadOrders(ctx)) return null;
     return (await this.orderService.findOne(ctx, invoice.orderId)) ?? invoice.order;
   }
 

@@ -137,6 +137,26 @@ describe('Downloads and Shop API', () => {
     expect(expired.body.toString()).toContain('expired');
   });
 
+  it('rejects malformed IDs and parameters without touching the database', async () => {
+    const url = invoice.files[0].downloadUrl;
+    expect((await get(url.replace(/\/download\/\d+\?/, `/download/${encodeURIComponent("1' OR '1'='1")}?`))).status).toBe(404);
+    expect((await get(url.replace(/\/download\/\d+\?/, `/download/${'9'.repeat(65)}?`))).status).toBe(404);
+    const base = new URL(url).origin;
+    // Repeated query parameters arrive as arrays; they must be rejected, not crash the handler
+    expect((await get(`${base}/e-invoice/zip?ids[]=1&ids[]=2&exp=1&sig=x`)).status).toBe(400);
+    expect((await get(`${base}/e-invoice/zip?ids=1,abc%7C&exp=1&sig=x`)).status).toBe(404);
+    expect((await get(`${url}&sig=again`)).status).toBe(403);
+  });
+
+  it('sends hardening headers with every response', async () => {
+    for (const url of [invoice.files[0].downloadUrl, withParam(invoice.files[0].downloadUrl, 'sig', 'x')]) {
+      const res = await get(url);
+      expect(res.headers.get('x-content-type-options')).toBe('nosniff');
+      expect(res.headers.get('content-security-policy')).toBe("default-src 'none'; sandbox");
+      expect(res.headers.get('referrer-policy')).toBe('no-referrer');
+    }
+  });
+
   it('creates guest links that are valid for 7 days', async () => {
     const { createEInvoiceGuestLink } = await adminClient.query(GUEST_LINK, { invoiceId: invoice.id });
     const exp = Number(new URL(createEInvoiceGuestLink).searchParams.get('exp'));

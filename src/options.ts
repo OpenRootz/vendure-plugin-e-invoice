@@ -128,6 +128,9 @@ export function resolveOptions(options: EInvoicePluginOptions): ResolvedEInvoice
     throw new Error('EInvoicePlugin: `secret` is required and must be at least 32 characters long');
   }
   const links = options.downloadLinks ?? {};
+  if (links.baseUrl !== undefined && !/^https?:\/\/[^/?#\s]+(\/[^?#\s]*)?$/.test(links.baseUrl)) {
+    throw new Error(`EInvoicePlugin: \`downloadLinks.baseUrl\` must be an http(s) URL without query or fragment, got ${links.baseUrl}`);
+  }
   return {
     issueOnStates: ['PaymentSettled'],
     autoCreditNotes: true,
