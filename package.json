@@ -59,6 +59,7 @@
   "dependencies": {
     "fflate": "^0.8.3",
     "graphql-tag": "^2.12.7",
+    "pdfjs-dist": "~6.4.299",
     "pdfmake": "~0.3.14"
   },
   "devDependencies": {

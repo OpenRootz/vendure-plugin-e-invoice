@@ -259,6 +259,8 @@ export interface LayoutPreview {
   pdf: string | null;
   pageCount: number;
   issues: EInvoiceIssue[];
+  blocks: { key: string; page: number; x: number; y: number; w: number; h: number; overflowBy?: number | null }[];
+  layoutIssues: { level: 'error' | 'warning'; code: string; message: string; blockKey?: string | null }[];
 }
 
 export interface LayoutPreviewInput {
@@ -280,7 +282,30 @@ export const layoutPreviewDocument = doc<{ eInvoiceLayoutPreview: LayoutPreview 
         message
         path
       }
+      blocks {
+        key
+        page
+        x
+        y
+        w
+        h
+        overflowBy
+      }
+      layoutIssues {
+        level
+        code
+        message
+        blockKey
+      }
     }
+  }
+`);
+
+export type LayoutPresetName = 'DEFAULT' | 'DIN_5008_A' | 'DIN_5008_B' | 'MINIMAL';
+
+export const defaultLayoutDocument = doc<{ eInvoiceDefaultLayout: unknown }, { preset?: LayoutPresetName }>(`
+  query EInvoiceDefaultLayout($preset: EInvoiceLayoutPreset) {
+    eInvoiceDefaultLayout(preset: $preset)
   }
 `);
 
@@ -321,10 +346,8 @@ export interface ChannelSettings {
   payment: { termsText?: string | null; termDays?: number | null };
   layout: {
     logoAssetId?: string | null;
-    accentColor?: string | null;
-    introText?: string | null;
-    closingText?: string | null;
-    footerText?: string | null;
+    /** The layout document (v2) */
+    document?: unknown;
   };
 }
 
@@ -369,10 +392,7 @@ const SETTINGS_FIELDS = `
   }
   layout {
     logoAssetId
-    accentColor
-    introText
-    closingText
-    footerText
+    document
   }
 `;
 

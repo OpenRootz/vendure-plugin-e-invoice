@@ -303,8 +303,12 @@ The plugin ships an extension for the React dashboard (`@vendure/dashboard`), co
   where they are fixed.
 - **Sales → E-Invoices**: list with filters and ZIP download of the selection.
 - **Settings → E-Invoices**: seller data, bank account, payment terms, setup status, PDF preview with sample data.
-- **Settings → Invoice layout**: logo, accent color and texts with a live preview of the real PDF (sample invoices
-  or the latest order), re-rendered while you type.
+- **Settings → Invoice layout**: the visual layout editor. The real PDF (sample invoices or the latest order) is
+  rendered by the server and shown with pdf.js; drag and resize blocks on the page (snapping to a 1 mm grid, the
+  margins and other blocks; Shift = free; arrow keys move by 0.5 mm, with Shift by 5 mm), show or hide them, anchor
+  them below growing blocks, edit texts, fonts and colors, add free texts, images and page numbers, start from a
+  preset (DIN 5008 Form A/B, minimal), undo and redo. Blocks that carry content §14 UStG requires are marked and
+  cannot be hidden when they are its last carrier; saving is disabled while the layout checks report errors.
 - The custom fields appear in the `E-Invoice` tab of orders, customers, tax rates and payment methods.
 
 No extra configuration is needed: `vendureDashboardPlugin` finds the extension through the plugin metadata.

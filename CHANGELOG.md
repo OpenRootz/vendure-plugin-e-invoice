@@ -20,4 +20,8 @@ First release.
 - Storage in the database (default), a local directory or S3
 - Dashboard extension: invoices on the order page, credit note dialog, invoice list, settings page
 - Live layout preview: `eInvoiceLayoutPreview` renders an unsaved layout with sample invoices (business, consumer,
-  credit note, many lines, worst case) or an order, without saving anything; layout page in the dashboard
+  credit note, many lines, worst case) or an order, without saving anything
+- Visual layout editor: the PDF layout is a document of blocks with free frames (grow or fixed, anchors, pages);
+  layout checks for §14 UStG content, clipping (against a worst-case sample), page bounds, overlaps, the DIN 5008
+  window and readability; presets; the editor renders the real PDF with pdf.js. Layouts from the channel settings
+  (accent color, texts) are converted automatically. `PdfTemplateInput.layout` is now the layout document.
