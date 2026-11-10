@@ -39,7 +39,8 @@ This plugin does that inside Vendure, without a browser, a Java runtime or an ex
 - **Visual layout editor**: drag and resize blocks on the real PDF, presets for DIN 5008 Form A/B, layout checks
   for the content §14 UStG requires. Or bring your own [pdfmake](https://pdfmake.github.io/docs/) template.
 - **Signed downloads**: time-limited links for admins, customers and guests, ZIP export, SHA-256 checked files.
-- **Storage**: database (default), local directory or S3.
+- **Storage**: database (default) or a local directory; anything else (object storage, WebDAV, a DMS) through a
+  small custom strategy. No cloud vendor SDK is bundled.
 - **No browser, no Java at runtime**: PDFs are rendered with pdfmake (pure JavaScript).
 - **Extensible**: strategies for numbering, seller and buyer data, formats, PDF, storage and validation, plus
   mapping hooks for the invoice model.
@@ -75,7 +76,6 @@ This plugin does that inside Vendure, without a browser, a Java runtime or an ex
 | Node.js   | ≥ 22 (CI: 22 and 24)                                                                                |
 | Database  | PostgreSQL and SQLite/sql.js are tested in CI; MySQL/MariaDB get `LONGBLOB`/`LONGTEXT` column types |
 | Dashboard | the React dashboard (`@vendure/dashboard`) for the UI extension; the APIs work without it           |
-| S3        | `@aws-sdk/client-s3` v3, only for `S3InvoiceStorageStrategy`                                        |
 
 ## Installation
 
@@ -399,14 +399,63 @@ validation: { validator: new KositHttpValidator({ url: 'http://kosit:8080/' }), 
 
 ## Storage
 
-| Strategy                                                     |                                                                                                                    |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| `DatabaseInvoiceStorageStrategy` (default)                   | files in the `e_invoice_blob` table: no setup, covered by your database backup, written in the same transaction    |
-| `LocalFileInvoiceStorageStrategy({ dir })`                   | `<dir>/<channel>/<year>/<file>`; server and worker must share the directory; never use a publicly served directory |
-| `S3InvoiceStorageStrategy({ bucket, prefix, clientConfig })` | needs `@aws-sdk/client-s3`; keep the bucket private                                                                |
+| Strategy                                   |                                                                                                                    |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| `DatabaseInvoiceStorageStrategy` (default) | files in the `e_invoice_blob` table: no setup, covered by your database backup, written in the same transaction    |
+| `LocalFileInvoiceStorageStrategy({ dir })` | `<dir>/<channel>/<year>/<file>`; server and worker must share the directory; never use a publicly served directory |
 
 Files are never overwritten or deleted by the plugin. Invoices must not be stored with the `AssetStorageStrategy`,
 because assets are public.
+
+### Custom storage
+
+To keep the files somewhere else, for example in an object storage of your choice, on a WebDAV server or in a
+document management system, implement `InvoiceStorageStrategy`. It has two methods: `save` stores a file and returns
+an ID of your choice, `read` returns the file for that ID. A custom storage must follow the same rules as the built-in
+ones:
+
+- **Never overwrite or delete** a file. Issued invoices are immutable and must be kept for at least 8 years.
+- **Expect a second save of the same key.** When an issuing transaction is rolled back, its file may already be
+  stored. Reuse it if the content is identical, otherwise store the new file under a different key.
+- **Keep the files private.** Downloads always go through the plugin's signed links, never directly to the storage.
+
+```ts
+import { RequestContext } from '@vendure/core';
+import { InvoiceStorageStrategy, safeKey, StoredFileInput } from '@openrootz/vendure-plugin-e-invoice';
+import { createHash } from 'crypto';
+
+/** The client of your storage. */
+interface FileStore {
+  get(key: string): Promise<Buffer | undefined>;
+  /** Writes the file unless the key exists; returns false if it existed. */
+  putIfAbsent(key: string, data: Buffer, mimeType: string): Promise<boolean>;
+}
+
+export class MyInvoiceStorageStrategy implements InvoiceStorageStrategy {
+  constructor(private store: FileStore) {}
+
+  async save(ctx: RequestContext, file: StoredFileInput): Promise<string> {
+    const key = safeKey(file.key); // e.g. default/2026/RE-2026-00001.pdf
+    if (await this.store.putIfAbsent(key, file.data, file.mimeType)) return key;
+    if ((await this.store.get(key))?.equals(file.data)) return key; // left over from a rolled-back attempt
+    const variant = `${key}.${createHash('sha256').update(file.data).digest('hex').slice(0, 12)}`;
+    await this.store.putIfAbsent(variant, file.data, file.mimeType);
+    return variant;
+  }
+
+  async read(ctx: RequestContext, storageId: string): Promise<Buffer> {
+    const data = await this.store.get(storageId);
+    if (!data) throw new Error(`Invoice file ${storageId} not found`);
+    return data;
+  }
+}
+```
+
+```ts
+EInvoicePlugin.init({ secret, storage: new MyInvoiceStorageStrategy(myStore) });
+```
+
+Like every Vendure strategy, it can implement `init(injector)` and `destroy()` to open and close connections.
 
 ## Validated output
 
