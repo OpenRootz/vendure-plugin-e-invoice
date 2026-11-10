@@ -58,14 +58,10 @@
     "format:check": "prettier --check src dashboard test .github \"*.{json,md,mjs,mts,yml,yaml}\""
   },
   "peerDependencies": {
-    "@aws-sdk/client-s3": "^3.0.0",
     "@vendure/core": "^3.8.0",
     "@vendure/dashboard": "^3.8.0"
   },
   "peerDependenciesMeta": {
-    "@aws-sdk/client-s3": {
-      "optional": true
-    },
     "@vendure/dashboard": {
       "optional": true
     }
@@ -77,7 +73,6 @@
     "pdfmake": "~0.3.14"
   },
   "devDependencies": {
-    "@aws-sdk/client-s3": "^3.1164.0",
     "@eslint/js": "^10.0.1",
     "@swc/core": "^1.16.22",
     "@types/node": "^22.0.0",

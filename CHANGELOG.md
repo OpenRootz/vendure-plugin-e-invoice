@@ -17,7 +17,7 @@ First release.
   customer's orders
 - Signed, time-limited download links, guest links and ZIP export; files are checked against their SHA-256
 - Optional runtime validation (`KositHttpValidator`, report or enforce)
-- Storage in the database (default), a local directory or S3
+- Storage in the database (default) or a local directory; other storage through a custom `InvoiceStorageStrategy`
 - Dashboard extension: invoices on the order page, credit note dialog, invoice list, settings page
 - Live layout preview: `eInvoiceLayoutPreview` renders an unsaved layout with sample invoices (business, consumer,
   credit note, many lines, worst case) or an order, without saving anything
