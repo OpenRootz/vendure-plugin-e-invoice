@@ -129,21 +129,14 @@ function party(p: Party, contact: Contact | undefined, seller?: Seller, sepaCred
     sepaCreditorId && el('cac:PartyIdentification', {}, el('cbc:ID', { schemeID: 'SEPA' }, sepaCreditorId)),
     p.tradingName && el('cac:PartyName', {}, el('cbc:Name', {}, p.tradingName)),
     address('cac:PostalAddress', p.address),
-    p.vatId &&
-      el('cac:PartyTaxScheme', {}, el('cbc:CompanyID', {}, p.vatId), el('cac:TaxScheme', {}, el('cbc:ID', {}, 'VAT'))),
+    p.vatId && el('cac:PartyTaxScheme', {}, el('cbc:CompanyID', {}, p.vatId), el('cac:TaxScheme', {}, el('cbc:ID', {}, 'VAT'))),
     seller?.taxNumber &&
-      el(
-        'cac:PartyTaxScheme',
-        {},
-        el('cbc:CompanyID', {}, seller.taxNumber),
-        el('cac:TaxScheme', {}, el('cbc:ID', {}, 'FC')),
-      ),
+      el('cac:PartyTaxScheme', {}, el('cbc:CompanyID', {}, seller.taxNumber), el('cac:TaxScheme', {}, el('cbc:ID', {}, 'FC'))),
     el(
       'cac:PartyLegalEntity',
       {},
       el('cbc:RegistrationName', {}, p.name),
-      seller?.legalRegistration &&
-        el('cbc:CompanyID', { schemeID: seller.legalRegistration.scheme }, seller.legalRegistration.id),
+      seller?.legalRegistration && el('cbc:CompanyID', { schemeID: seller.legalRegistration.scheme }, seller.legalRegistration.id),
       textEl('cbc:CompanyLegalForm', seller?.legalInfo),
     ),
     contact &&

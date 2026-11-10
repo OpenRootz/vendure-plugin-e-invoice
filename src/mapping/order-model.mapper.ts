@@ -17,7 +17,7 @@ import { createHash } from 'crypto';
 import { PLUGIN_INIT_OPTIONS } from '../constants';
 import { Buyer, EInvoiceFormat, EInvoiceModel, IsoDate, PaymentMeans, VatCategory, VatCategoryCode } from '../core';
 import { ResolvedEInvoicePluginOptions } from '../options';
-import { BuyerData, SellerData } from '../strategies/types';
+import { SellerData } from '../strategies/types';
 
 import { buildModel, isoDateInZone, rateToDecimal } from './build-model';
 
@@ -145,9 +145,7 @@ export class OrderModelMapper {
 
   private async paymentMethods(ctx: RequestContext): Promise<Map<string, PaymentMethod>> {
     const methods = await this.connection.getRepository(ctx, PaymentMethod).find({ relations: ['channels', 'translations'] });
-    return new Map(
-      methods.filter((m) => m.channels.some((c) => idsAreEqual(c.id, ctx.channelId))).map((m) => [m.code, m]),
-    );
+    return new Map(methods.filter((m) => m.channels.some((c) => idsAreEqual(c.id, ctx.channelId))).map((m) => [m.code, m]));
   }
 }
 
@@ -166,7 +164,8 @@ export function categoryFromTaxRate(rate: number, taxRate: TaxRate | undefined):
 function defaultPaymentMeans(method: PaymentMethod | undefined, methodCode: string, seller: SellerData): PaymentMeans {
   const code = method?.customFields?.eInvoicePaymentMeansCode || 'ZZZ';
   const text = (method && translated(method, undefined)) || methodCode;
-  if (code === '58') return { code: '58', iban: seller.bank?.iban ?? '', bic: seller.bank?.bic, accountName: seller.bank?.accountName, text };
+  if (code === '58')
+    return { code: '58', iban: seller.bank?.iban ?? '', bic: seller.bank?.bic, accountName: seller.bank?.accountName, text };
   return { code, text };
 }
 

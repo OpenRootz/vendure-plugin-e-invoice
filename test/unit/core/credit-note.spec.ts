@@ -27,7 +27,13 @@ const ZERO = { code: 'Z' as const, rate: '0' };
 function invoice(): EInvoiceModel {
   const m = model({
     lines: [
-      line(1000, '3', VAT_19, { id: '1', name: 'Kaffee', netAmount: 2800, allowances: [{ amount: 200, reason: 'Herbstrabatt' }], vendureTaxAmount: 532 }),
+      line(1000, '3', VAT_19, {
+        id: '1',
+        name: 'Kaffee',
+        netAmount: 2800,
+        allowances: [{ amount: 200, reason: 'Herbstrabatt' }],
+        vendureTaxAmount: 532,
+      }),
       line(1869, '1', VAT_7, { id: '2', name: 'Buch', vendureTaxAmount: 131 }),
       line(18900, '1', ZERO, { id: '3', name: 'Solarmodul', vendureTaxAmount: 0 }),
     ],
@@ -56,7 +62,11 @@ describe('buildCreditNote', () => {
     const original = invoice();
     const note = credit(original, [], { full: true });
     expectValid(note);
-    expect(note).toMatchObject({ type: 'credit_note', issueDate: '2026-11-20', precedingInvoices: [{ number: 'RE-2026-00001', issueDate: '2026-11-09' }] });
+    expect(note).toMatchObject({
+      type: 'credit_note',
+      issueDate: '2026-11-20',
+      precedingInvoices: [{ number: 'RE-2026-00001', issueDate: '2026-11-09' }],
+    });
     expect(note.totals).toMatchObject({ taxBasisTotal: original.totals!.taxBasisTotal, taxTotal: original.totals!.taxTotal });
     expect(note.totals?.vat).toEqual(original.totals?.vat);
     expect(note.charges).toEqual([{ ...original.charges[0], creditOf: { charge: 0 } }]);
@@ -78,7 +88,12 @@ describe('buildCreditNote', () => {
     // 2800 / 3 → 933, 934 (cumulative 1867), 933
     expect([first, second, third].map((n) => n.lines[0].netAmount)).toEqual([933, 934, 933]);
     expect([first, second, third].map((n) => n.lines[0].vendureTaxAmount)).toEqual([177, 178, 177]);
-    expect(first.lines[0]).toMatchObject({ quantity: '1', netUnitPrice: 1000, allowances: [{ amount: 67, reason: 'Herbstrabatt' }], creditOf: { line: '1' } });
+    expect(first.lines[0]).toMatchObject({
+      quantity: '1',
+      netUnitPrice: 1000,
+      allowances: [{ amount: 67, reason: 'Herbstrabatt' }],
+      creditOf: { line: '1' },
+    });
     expect(creditableState(original, [first, second, third]).lines.get('1')).toEqual({ quantity: '0', net: 0, tax: 0 });
     expect(() => credit(original, [first, second, third], { lines: [{ lineId: '1', quantity: '1' }] })).toThrow(/0 left to credit/);
   });
@@ -167,7 +182,11 @@ describe('buildCreditNote', () => {
   it('keeps the applied tax calculation of the invoice and books BT-114 in en16931 mode', () => {
     const m = model({
       taxCalculation: 'en16931',
-      lines: [line(335, '1', VAT_19, { vendureTaxAmount: 64 }), line(419, '1', VAT_19, { vendureTaxAmount: 80 }), line(503, '1', VAT_19, { vendureTaxAmount: 96 })],
+      lines: [
+        line(335, '1', VAT_19, { vendureTaxAmount: 64 }),
+        line(419, '1', VAT_19, { vendureTaxAmount: 80 }),
+        line(503, '1', VAT_19, { vendureTaxAmount: 96 }),
+      ],
       payment: { means: [{ code: '48', cardLast4: '1234' }], prepaidAmount: 1497 },
     });
     m.totals = calculate(m, { expectedTotalWithTax: 1497 });
@@ -180,14 +199,19 @@ describe('buildCreditNote', () => {
   });
 
   it('uses a custom allocation', () => {
-    const note = buildCreditNote(invoice(), [], { amount: 1000 }, {
-      issueDate: '2026-11-20',
-      texts,
-      allocate: ({ shares }) => shares.map((s) => (s.category.rate === '7' ? 1000 : 0)),
-    });
+    const note = buildCreditNote(
+      invoice(),
+      [],
+      { amount: 1000 },
+      {
+        issueDate: '2026-11-20',
+        texts,
+        allocate: ({ shares }) => shares.map((s) => (s.category.rate === '7' ? 1000 : 0)),
+      },
+    );
     expect(note.lines.map((l) => l.vat.rate)).toEqual(['7']);
-    expect(() =>
-      buildCreditNote(invoice(), [], { amount: 1000 }, { issueDate: '2026-11-20', texts, allocate: () => [1] }),
-    ).toThrow(/allocation/);
+    expect(() => buildCreditNote(invoice(), [], { amount: 1000 }, { issueDate: '2026-11-20', texts, allocate: () => [1] })).toThrow(
+      /allocation/,
+    );
   });
 });

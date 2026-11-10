@@ -45,9 +45,7 @@ export function buildModel(input: BuildModelInput): EInvoiceModel {
   const { order } = input;
   const labels = mappingLabels(input.language);
 
-  const lines: InvoiceLine[] = order.lines
-    .filter((l) => l.quantity > 0)
-    .map((line, index) => mapLine(input, line, index, labels));
+  const lines: InvoiceLine[] = order.lines.filter((l) => l.quantity > 0).map((line, index) => mapLine(input, line, index, labels));
 
   const charges: AllowanceCharge[] = [];
   const allowances: AllowanceCharge[] = [];

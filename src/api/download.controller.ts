@@ -42,11 +42,7 @@ export class EInvoiceDownloadController {
   ) {}
 
   @Get('download/:id')
-  async download(
-    @Param('id') id: string,
-    @Query() query: { f?: string; exp?: string; sig?: string },
-    @Res() res: Response,
-  ) {
+  async download(@Param('id') id: string, @Query() query: { f?: string; exp?: string; sig?: string }, @Res() res: Response) {
     await this.respond(res, async () => {
       const format = query.f as EInvoiceFormat | undefined;
       if (format !== undefined && !FORMATS.includes(format)) throw new HttpError(400, 'Unknown format');

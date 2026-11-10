@@ -5,8 +5,7 @@ import { graphql, TypedDocumentNode } from '@vendure/dashboard';
  * untyped and the result types below are declared by hand. (Projects that generate their own `@/gql`
  * types get the same documents at runtime.)
  */
-const doc = <R, V = Record<string, unknown>>(source: string) =>
-  (graphql as unknown as (source: string) => TypedDocumentNode<R, V>)(source);
+const doc = <R, V = Record<string, unknown>>(source: string) => (graphql as unknown as (source: string) => TypedDocumentNode<R, V>)(source);
 
 export type EInvoiceStatus = 'BLOCKED' | 'PENDING' | 'ISSUED' | 'FAILED' | 'VOID';
 export type EInvoiceType = 'INVOICE' | 'CREDIT_NOTE';
@@ -41,7 +40,11 @@ export interface EInvoiceRow {
   errorMessage: string | null;
   voidReason: string | null;
   correctedInvoice: { id: string; number: string | null } | null;
-  validation: { valid: boolean; error: string | null; results: { format: EInvoiceFormat; valid: boolean; messages: { level: string; code: string | null; text: string }[] }[] } | null;
+  validation: {
+    valid: boolean;
+    error: string | null;
+    results: { format: EInvoiceFormat; valid: boolean; messages: { level: string; code: string | null; text: string }[] }[];
+  } | null;
 }
 
 export interface EInvoiceCreditable {
@@ -112,7 +115,10 @@ export const orderEInvoicesDocument = doc<{ order: { id: string; code: string; e
   }
 `);
 
-export const creditableDocument = doc<{ eInvoice: { id: string; number: string | null; currencyCode: string; creditable: EInvoiceCreditable | null } | null }, { id: string }>(`
+export const creditableDocument = doc<
+  { eInvoice: { id: string; number: string | null; currencyCode: string; creditable: EInvoiceCreditable | null } | null },
+  { id: string }
+>(`
   query EInvoiceCreditable($id: ID!) {
     eInvoice(id: $id) {
       id
@@ -134,7 +140,10 @@ export const creditableDocument = doc<{ eInvoice: { id: string; number: string |
   }
 `);
 
-export const eInvoiceListDocument = doc<{ eInvoices: { totalItems: number; items: (EInvoiceRow & { orderCode: string; order: { id: string } | null })[] } }, { options?: unknown }>(`
+export const eInvoiceListDocument = doc<
+  { eInvoices: { totalItems: number; items: (EInvoiceRow & { orderCode: string; order: { id: string } | null })[] } },
+  { options?: unknown }
+>(`
   query EInvoiceList($options: EInvoiceListOptions) {
     eInvoices(options: $options) {
       totalItems

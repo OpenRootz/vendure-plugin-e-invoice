@@ -50,7 +50,12 @@ export interface PageCountRef {
 export const markerId = (blockKey: string, edge: 'start' | 'end') => `b:${blockKey}:${edge}`;
 
 /** An invisible node with a height of ~0 whose position pdfmake reports to `pageBreakBefore`. */
-const marker = (blockKey: string, edge: 'start' | 'end'): PdfNode => ({ text: ' ', fontSize: 0.01, lineHeight: 0, id: markerId(blockKey, edge) });
+const marker = (blockKey: string, edge: 'start' | 'end'): PdfNode => ({
+  text: ' ',
+  fontSize: 0.01,
+  lineHeight: 0,
+  id: markerId(blockKey, edge),
+});
 
 /**
  * Compiles a v2 layout into a pdfmake document definition:
@@ -160,7 +165,10 @@ export function compileLayout(
 
   // --- fixed blocks in the page background ---
   const onPage = (block: LayoutBlock, page: number, count: number) =>
-    block.pages === 'all' || (block.pages === 'first' && page === 1) || (block.pages === 'following' && page > 1) || (block.pages === 'last' && page === count);
+    block.pages === 'all' ||
+    (block.pages === 'first' && page === 1) ||
+    (block.pages === 'following' && page > 1) ||
+    (block.pages === 'last' && page === count);
   for (const block of fixed) if (!render(block, 1, 1)) empty.add(block.key);
   const background = (page: number) => {
     const count = pageCountRef.value;

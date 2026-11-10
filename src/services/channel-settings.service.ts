@@ -40,12 +40,17 @@ export class ChannelSettingsService {
 
   /** Settings of the current channel; an unsaved default (disabled) when none exist yet. v1 layouts are converted. */
   async get(ctx: RequestContext): Promise<EInvoiceChannelSettings> {
-    const existing = await this.connection
-      .getRepository(ctx, EInvoiceChannelSettings)
-      .findOne({ where: { channelId: ctx.channelId } });
+    const existing = await this.connection.getRepository(ctx, EInvoiceChannelSettings).findOne({ where: { channelId: ctx.channelId } });
     const settings =
       existing ??
-      new EInvoiceChannelSettings({ channelId: ctx.channelId, enabled: false, autoIssue: true, seller: {}, payment: {}, layout: undefined });
+      new EInvoiceChannelSettings({
+        channelId: ctx.channelId,
+        enabled: false,
+        autoIssue: true,
+        seller: {},
+        payment: {},
+        layout: undefined,
+      });
     settings.layout = migrateLayout(settings.layout);
     return settings;
   }

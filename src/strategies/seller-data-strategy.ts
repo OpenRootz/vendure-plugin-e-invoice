@@ -14,9 +14,7 @@ export class ChannelSettingsSellerStrategy implements SellerDataStrategy {
   }
 
   async getSeller(ctx: RequestContext, _order: Order): Promise<SellerData | undefined> {
-    const settings = await this.connection
-      .getRepository(ctx, EInvoiceChannelSettings)
-      .findOne({ where: { channelId: ctx.channelId } });
+    const settings = await this.connection.getRepository(ctx, EInvoiceChannelSettings).findOne({ where: { channelId: ctx.channelId } });
     if (!settings) return undefined;
     return {
       seller: sellerFromSettings(settings.seller),

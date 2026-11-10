@@ -1,6 +1,17 @@
 import { Order, OrderLine, OrderState, Payment, RequestContext } from '@vendure/core';
 
-import { Buyer, CreditAllocationInput, EInvoiceModel, Money, IsoDate, PaymentMeans, PdfFonts, PdfLabels, Seller, VatCategory } from './core';
+import {
+  Buyer,
+  CreditAllocationInput,
+  EInvoiceModel,
+  Money,
+  IsoDate,
+  PaymentMeans,
+  PdfFonts,
+  PdfLabels,
+  Seller,
+  VatCategory,
+} from './core';
 import { DefaultBuyerDataStrategy } from './strategies/buyer-data-strategy';
 import { DefaultInvoiceFormatStrategy } from './strategies/format-strategy';
 import {

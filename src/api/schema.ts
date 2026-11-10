@@ -87,7 +87,7 @@ export const adminApiExtensions = gql`
     creditNotes: [EInvoice!]!
     "Invoices: total minus credit notes; 0 for credit notes"
     remainingAmount: Money!
-"The order; null without the ReadOrder permission"
+    "The order; null without the ReadOrder permission"
     order: Order
     orderCode: String!
     "Result of the runtime validation, if enabled (option validation.mode)"

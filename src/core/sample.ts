@@ -55,8 +55,7 @@ const TEXTS: Record<'de' | 'en', Texts> = {
     exemption: 'Steuerfrei gemäß § 4 Nr. 14 UStG',
     creditNote: 'Teilrückgabe',
     card: 'Kreditkarte',
-    longDescription:
-      'Ausführliche Artikelbeschreibung mit Variante, Farbe, Größe und Seriennummer, damit auch lange Zeilen umbrechen',
+    longDescription: 'Ausführliche Artikelbeschreibung mit Variante, Farbe, Größe und Seriennummer, damit auch lange Zeilen umbrechen',
   },
   en: {
     products: [
@@ -92,7 +91,13 @@ export function sampleModel(kind: SampleKind, options: SampleOptions): EInvoiceM
   const business = !gross;
 
   let lineNo = 0;
-  const line = (p: { name: string; description?: string }, net: number, qty: string, vat: VatCategory, extra: Partial<InvoiceLine> = {}): InvoiceLine => {
+  const line = (
+    p: { name: string; description?: string },
+    net: number,
+    qty: string,
+    vat: VatCategory,
+    extra: Partial<InvoiceLine> = {},
+  ): InvoiceLine => {
     lineNo++;
     const netUnitPrice = price(net);
     const allowances = extra.allowances ?? [];
@@ -149,7 +154,10 @@ export function sampleModel(kind: SampleKind, options: SampleOptions): EInvoiceM
       ];
       if (kind === 'b2b-net') {
         charges.push({ amount: price(4.95), reason: t.shipping, reasonCode: 'FC', vat: VAT_19 });
-        delivery = { name: 'Musterkunde GmbH, Lager', address: { line1: 'Industriestraße 40', postalCode: '85748', city: 'Garching', countryCode: 'DE' } };
+        delivery = {
+          name: 'Musterkunde GmbH, Lager',
+          address: { line1: 'Industriestraße 40', postalCode: '85748', city: 'Garching', countryCode: 'DE' },
+        };
       } else {
         lines = [lines[1], lines[3]].map((l, i) => ({ ...l, id: String(i + 1), quantity: '1', allowances: [], netAmount: l.netUnitPrice }));
         notes.push(t.creditNote);
@@ -169,9 +177,15 @@ export function sampleModel(kind: SampleKind, options: SampleOptions): EInvoiceM
     case 'worst-case':
       lines = [
         ...t.products.map((p, i) =>
-          line({ name: `${p.name} – ${t.longDescription.slice(0, 40)}`, description: t.longDescription }, 12.34 + i * 11.11, String(1 + i), [VAT_19, VAT_7][i % 2], {
-            allowances: i % 2 ? [{ amount: price(1), reason: t.promotion }] : [],
-          }),
+          line(
+            { name: `${p.name} – ${t.longDescription.slice(0, 40)}`, description: t.longDescription },
+            12.34 + i * 11.11,
+            String(1 + i),
+            [VAT_19, VAT_7][i % 2],
+            {
+              allowances: i % 2 ? [{ amount: price(1), reason: t.promotion }] : [],
+            },
+          ),
         ),
         line({ name: `${t.products[2].name} (${t.exemption})`, description: t.longDescription }, 48, '1', exemptCategory),
       ];
@@ -192,7 +206,13 @@ export function sampleModel(kind: SampleKind, options: SampleOptions): EInvoiceM
       buyer.vatId = 'ATU12345678';
       delivery = {
         name: 'Musterkunde Handels- und Vertriebsgesellschaft mbH & Co. KG, Zentrallager Nord',
-        address: { line1: 'Industriestraße 40, Halle 7, Tor 12', line2: 'Anlieferung Rampe 3', postalCode: '1220', city: 'Wien', countryCode: 'AT' },
+        address: {
+          line1: 'Industriestraße 40, Halle 7, Tor 12',
+          line2: 'Anlieferung Rampe 3',
+          postalCode: '1220',
+          city: 'Wien',
+          countryCode: 'AT',
+        },
       };
       break;
   }

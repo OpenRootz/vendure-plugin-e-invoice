@@ -61,23 +61,14 @@ export function toCii(model: EInvoiceModel, flavour: 'zugferd' | 'xrechnung'): s
         textEl('ram:BuyerReference', model.buyerReference),
         el('ram:SellerTradeParty', {}, party(model.seller, model.seller.contact, model.seller)),
         el('ram:BuyerTradeParty', {}, party(model.buyer, model.buyer.contact)),
-        model.salesOrderReference &&
-          el('ram:SellerOrderReferencedDocument', {}, el('ram:IssuerAssignedID', {}, model.salesOrderReference)),
-        model.orderReference &&
-          el('ram:BuyerOrderReferencedDocument', {}, el('ram:IssuerAssignedID', {}, model.orderReference)),
+        model.salesOrderReference && el('ram:SellerOrderReferencedDocument', {}, el('ram:IssuerAssignedID', {}, model.salesOrderReference)),
+        model.orderReference && el('ram:BuyerOrderReferencedDocument', {}, el('ram:IssuerAssignedID', {}, model.orderReference)),
       ),
       el(
         'ram:ApplicableHeaderTradeDelivery',
         {},
-        model.delivery &&
-          el(
-            'ram:ShipToTradeParty',
-            {},
-            textEl('ram:Name', model.delivery.name),
-            postalAddress(model.delivery.address),
-          ),
-        model.deliveryDate &&
-          el('ram:ActualDeliverySupplyChainEvent', {}, el('ram:OccurrenceDateTime', {}, date(model.deliveryDate))),
+        model.delivery && el('ram:ShipToTradeParty', {}, textEl('ram:Name', model.delivery.name), postalAddress(model.delivery.address)),
+        model.deliveryDate && el('ram:ActualDeliverySupplyChainEvent', {}, el('ram:OccurrenceDateTime', {}, date(model.deliveryDate))),
       ),
       el(
         'ram:ApplicableHeaderTradeSettlement',
@@ -115,11 +106,7 @@ export function toCii(model: EInvoiceModel, flavour: 'zugferd' | 'xrechnung'): s
             'ram:InvoiceReferencedDocument',
             {},
             el('ram:IssuerAssignedID', {}, p.number),
-            el(
-              'ram:FormattedIssueDateTime',
-              {},
-              el('qdt:DateTimeString', { format: '102' }, p.issueDate.replace(/-/g, '')),
-            ),
+            el('ram:FormattedIssueDateTime', {}, el('qdt:DateTimeString', { format: '102' }, p.issueDate.replace(/-/g, ''))),
           ),
         ),
       ),
@@ -156,28 +143,14 @@ function lineItem(line: InvoiceLine, amount: (v: Money) => string): XmlElement {
       {},
       el('ram:NetPriceProductTradePrice', {}, el('ram:ChargeAmount', {}, amount(line.netUnitPrice))),
     ),
-    el(
-      'ram:SpecifiedLineTradeDelivery',
-      {},
-      el('ram:BilledQuantity', { unitCode: line.unitCode }, normalizeDecimal(line.quantity)),
-    ),
+    el('ram:SpecifiedLineTradeDelivery', {}, el('ram:BilledQuantity', { unitCode: line.unitCode }, normalizeDecimal(line.quantity))),
     el(
       'ram:SpecifiedLineTradeSettlement',
       {},
-      el(
-        'ram:ApplicableTradeTax',
-        {},
-        el('ram:TypeCode', {}, 'VAT'),
-        el('ram:CategoryCode', {}, line.vat.code),
-        rate(line.vat),
-      ),
+      el('ram:ApplicableTradeTax', {}, el('ram:TypeCode', {}, 'VAT'), el('ram:CategoryCode', {}, line.vat.code), rate(line.vat)),
       line.allowances.map((a) => lineAllowanceCharge(a, false, amount)),
       line.charges.map((c) => lineAllowanceCharge(c, true, amount)),
-      el(
-        'ram:SpecifiedTradeSettlementLineMonetarySummation',
-        {},
-        el('ram:LineTotalAmount', {}, amount(line.netAmount)),
-      ),
+      el('ram:SpecifiedTradeSettlementLineMonetarySummation', {}, el('ram:LineTotalAmount', {}, amount(line.netAmount))),
     ),
   );
 }
@@ -202,13 +175,7 @@ function headerAllowanceCharge(ac: AllowanceCharge, isCharge: boolean, amount: (
     el('ram:ActualAmount', {}, amount(ac.amount)),
     textEl('ram:ReasonCode', ac.reasonCode),
     textEl('ram:Reason', ac.reason),
-    el(
-      'ram:CategoryTradeTax',
-      {},
-      el('ram:TypeCode', {}, 'VAT'),
-      el('ram:CategoryCode', {}, vat.code),
-      rate(vat),
-    ),
+    el('ram:CategoryTradeTax', {}, el('ram:TypeCode', {}, 'VAT'), el('ram:CategoryCode', {}, vat.code), rate(vat)),
   );
 }
 
@@ -220,8 +187,7 @@ function party(p: Party, contact: Contact | undefined, seller?: Seller): XmlElem
     optEl(
       'ram:SpecifiedLegalOrganization',
       {},
-      seller?.legalRegistration &&
-        el('ram:ID', { schemeID: seller.legalRegistration.scheme }, seller.legalRegistration.id),
+      seller?.legalRegistration && el('ram:ID', { schemeID: seller.legalRegistration.scheme }, seller.legalRegistration.id),
       textEl('ram:TradingBusinessName', p.tradingName),
     ),
     contact &&
@@ -234,11 +200,7 @@ function party(p: Party, contact: Contact | undefined, seller?: Seller): XmlElem
       ),
     postalAddress(p.address),
     p.electronicAddress &&
-      el(
-        'ram:URIUniversalCommunication',
-        {},
-        el('ram:URIID', { schemeID: p.electronicAddress.scheme }, p.electronicAddress.value),
-      ),
+      el('ram:URIUniversalCommunication', {}, el('ram:URIID', { schemeID: p.electronicAddress.scheme }, p.electronicAddress.value)),
     p.vatId && el('ram:SpecifiedTaxRegistration', {}, el('ram:ID', { schemeID: 'VA' }, p.vatId)),
     seller?.taxNumber && el('ram:SpecifiedTaxRegistration', {}, el('ram:ID', { schemeID: 'FC' }, seller.taxNumber)),
   ].filter((x): x is XmlElement => !!x);
@@ -264,17 +226,10 @@ function paymentMeans(means: PaymentMeans): XmlElement {
     {},
     el('ram:TypeCode', {}, means.code),
     textEl('ram:Information', means.text),
-    'cardLast4' in means &&
-      means.cardLast4 &&
-      el('ram:ApplicableTradeSettlementFinancialCard', {}, el('ram:ID', {}, means.cardLast4)),
+    'cardLast4' in means && means.cardLast4 && el('ram:ApplicableTradeSettlementFinancialCard', {}, el('ram:ID', {}, means.cardLast4)),
     'debtorIban' in means && el('ram:PayerPartyDebtorFinancialAccount', {}, el('ram:IBANID', {}, means.debtorIban)),
     'iban' in means &&
-      el(
-        'ram:PayeePartyCreditorFinancialAccount',
-        {},
-        el('ram:IBANID', {}, means.iban),
-        textEl('ram:AccountName', means.accountName),
-      ),
+      el('ram:PayeePartyCreditorFinancialAccount', {}, el('ram:IBANID', {}, means.iban), textEl('ram:AccountName', means.accountName)),
     'bic' in means && means.bic && el('ram:PayeeSpecifiedCreditorFinancialInstitution', {}, el('ram:BICID', {}, means.bic)),
   );
 }

@@ -34,7 +34,13 @@ export type BlockRenderer = (ctx: BlockContext) => PdfNode | null;
 export const GREY = '#555555';
 export const LIGHT = '#dddddd';
 
-export function addressLines(name: string, address: Address, contact: string | undefined, homeCountry: string, labels: PdfLabels): string[] {
+export function addressLines(
+  name: string,
+  address: Address,
+  contact: string | undefined,
+  homeCountry: string,
+  labels: PdfLabels,
+): string[] {
   const country = address.countryCode && address.countryCode !== homeCountry ? countryName(address.countryCode, labels.locale) : undefined;
   return [
     name,
@@ -61,7 +67,10 @@ export function withTax(amount: Money, rate: string, vendureTax: Money | undefin
 }
 
 export function formatIban(iban: string): string {
-  return iban.replace(/\s+/g, '').replace(/(.{4})/g, '$1 ').trim();
+  return iban
+    .replace(/\s+/g, '')
+    .replace(/(.{4})/g, '$1 ')
+    .trim();
 }
 
 export function sepaAccount(model: EInvoiceModel) {

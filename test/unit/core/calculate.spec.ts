@@ -127,14 +127,10 @@ describe('calculate', () => {
     const t = calculate(
       model({ lines: [line(2500, '1', { code: 'AE', rate: '0', exemptionReasonCode: 'VATEX-EU-AE' }, { vendureTaxAmount: 0 })] }),
     );
-    expect(t.vat).toEqual([
-      { category: { code: 'AE', rate: '0', exemptionReasonCode: 'VATEX-EU-AE' }, basisAmount: 2500, taxAmount: 0 },
-    ]);
+    expect(t.vat).toEqual([{ category: { code: 'AE', rate: '0', exemptionReasonCode: 'VATEX-EU-AE' }, basisAmount: 2500, taxAmount: 0 }]);
   });
 
   it('rejects document-level charges without a VAT category', () => {
-    expect(() => calculate(model({ lines: [line(100)], charges: [{ amount: 490, reason: 'Versand' }] }))).toThrow(
-      /no VAT category/,
-    );
+    expect(() => calculate(model({ lines: [line(100)], charges: [{ amount: 490, reason: 'Versand' }] }))).toThrow(/no VAT category/);
   });
 });

@@ -105,18 +105,18 @@ Order reaches PaymentSettled ─▶ reconcile ─▶ checks ──fail──▶ 
   - order cancelled → the remaining amount is credited in full;
   - order modified after invoicing → full credit note plus a new invoice for the current order;
   - manual: per line and quantity, shipping, a free amount, or a full reversal.
-  The credited quantities and amounts can never exceed the invoice.
+    The credited quantities and amounts can never exceed the invoice.
 
 ### Buyer data
 
 The plugin registers optional custom fields (tab `E-Invoice`):
 
-| Entity | Fields |
-|---|---|
-| `Order` | `eInvoiceVatId` (BT-48), `eInvoiceBuyerReference` (BT-10), `eInvoiceLeitwegId`, `eInvoicePurchaseOrder` (BT-13), `eInvoiceNote` (BT-22) |
-| `Customer` | `eInvoiceVatId`, `eInvoiceBuyerReference`, `eInvoiceLeitwegId` (used when the order field is empty) |
-| `TaxRate` | `eInvoiceCategoryCode`, `eInvoiceExemptionReason`, `eInvoiceExemptionReasonCode` |
-| `PaymentMethod` | `eInvoicePaymentMeansCode` |
+| Entity          | Fields                                                                                                                                  |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `Order`         | `eInvoiceVatId` (BT-48), `eInvoiceBuyerReference` (BT-10), `eInvoiceLeitwegId`, `eInvoicePurchaseOrder` (BT-13), `eInvoiceNote` (BT-22) |
+| `Customer`      | `eInvoiceVatId`, `eInvoiceBuyerReference`, `eInvoiceLeitwegId` (used when the order field is empty)                                     |
+| `TaxRate`       | `eInvoiceCategoryCode`, `eInvoiceExemptionReason`, `eInvoiceExemptionReasonCode`                                                        |
+| `PaymentMethod` | `eInvoicePaymentMeansCode`                                                                                                              |
 
 The order and customer fields are readable and writable in the Shop API by default, so B2B customers can enter
 their VAT ID or Leitweg-ID at checkout (`setOrderCustomFields`). Set `exposeBuyerFieldsInShop: false` to keep them
@@ -130,12 +130,12 @@ XRechnung (CII) is issued in addition to the ZUGFeRD PDF.
 
 ```ts
 EInvoicePlugin.init({
-  secret: process.env.E_INVOICE_SECRET!,     // required
-  issueOnStates: ['PaymentSettled'],         // automatic invoices
-  autoCreditNotes: true,                     // refunds, cancellations, modifications
-  taxCalculation: 'vendure',                 // or 'en16931', see below
-  roundingFallbackThreshold: 50,             // minor units
-  timeZone: 'Europe/Berlin',                 // issue and due dates; default: server time zone
+  secret: process.env.E_INVOICE_SECRET!, // required
+  issueOnStates: ['PaymentSettled'], // automatic invoices
+  autoCreditNotes: true, // refunds, cancellations, modifications
+  taxCalculation: 'vendure', // or 'en16931', see below
+  roundingFallbackThreshold: 50, // minor units
+  timeZone: 'Europe/Berlin', // issue and due dates; default: server time zone
   exposeBuyerFieldsInShop: true,
   downloadLinks: { guestTtl: '7d', ownerTtl: '1h', adminTtl: '15m', baseUrl: 'https://shop.example.com' },
   validation: { validator: new KositHttpValidator({ url: 'http://kosit:8080/' }), mode: 'report' },
@@ -146,7 +146,7 @@ EInvoicePlugin.init({
   formatStrategy: new DefaultInvoiceFormatStrategy(),
   pdfStrategy: new DefaultTemplatePdfStrategy(),
   pdf: { fonts: undefined, translations: { de: { invoice: 'Rechnung' } } },
-  mapping: { /* hooks, see below */ },
+  mapping: {/* hooks, see below */},
 });
 ```
 
@@ -204,7 +204,7 @@ import { defaultTemplate, InvoicePdfStrategy, PdfTemplateInput } from '@openroot
 
 class MyPdfStrategy implements InvoicePdfStrategy {
   buildDocDefinition(ctx: RequestContext, input: PdfTemplateInput) {
-    const doc = defaultTemplate(input);   // or build your own from input.model and input.labels
+    const doc = defaultTemplate(input); // or build your own from input.model and input.labels
     return { ...doc, watermark: { text: 'COPY', opacity: 0.1 } };
   }
 }
@@ -217,19 +217,19 @@ Roboto (Latin, Greek, Cyrillic). A layout can pick one of them as `theme.font`.
 
 ### Other strategies and hooks
 
-| Option | Default | Purpose |
-|---|---|---|
-| `sellerStrategy` | `ChannelSettingsSellerStrategy` | seller data, bank account and payment terms |
-| `buyerStrategy` | `DefaultBuyerDataStrategy` | buyer, buyer reference, delivery address, notes |
-| `formatStrategy` | ZUGFeRD, + XRechnung CII with a Leitweg-ID | which files a document gets (`zugferd`, `xrechnung-cii`, `xrechnung-ubl`) |
-| `mapping.deliveryDate` | issue date | BT-72 |
-| `mapping.taxCategory` | TaxRate custom fields | VAT category per line, e.g. `AE` for EU B2B with VAT ID |
-| `mapping.paymentMeans` | PaymentMethod custom field | BG-16 |
-| `mapping.unitCode` | `H87` (piece) | BT-130 |
-| `mapping.language` | channel default language | PDF language |
-| `mapping.priceDisplay` | net for business buyers, else gross | line prices in the PDF |
-| `mapping.creditAllocation` | proportional to the remaining gross per VAT rate | split of amount-only refunds |
-| `mapping.transformModel` | — | last-mile change of the invoice model before the checks |
+| Option                     | Default                                          | Purpose                                                                   |
+| -------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------- |
+| `sellerStrategy`           | `ChannelSettingsSellerStrategy`                  | seller data, bank account and payment terms                               |
+| `buyerStrategy`            | `DefaultBuyerDataStrategy`                       | buyer, buyer reference, delivery address, notes                           |
+| `formatStrategy`           | ZUGFeRD, + XRechnung CII with a Leitweg-ID       | which files a document gets (`zugferd`, `xrechnung-cii`, `xrechnung-ubl`) |
+| `mapping.deliveryDate`     | issue date                                       | BT-72                                                                     |
+| `mapping.taxCategory`      | TaxRate custom fields                            | VAT category per line, e.g. `AE` for EU B2B with VAT ID                   |
+| `mapping.paymentMeans`     | PaymentMethod custom field                       | BG-16                                                                     |
+| `mapping.unitCode`         | `H87` (piece)                                    | BT-130                                                                    |
+| `mapping.language`         | channel default language                         | PDF language                                                              |
+| `mapping.priceDisplay`     | net for business buyers, else gross              | line prices in the PDF                                                    |
+| `mapping.creditAllocation` | proportional to the remaining gross per VAT rate | split of amount-only refunds                                              |
+| `mapping.transformModel`   | —                                                | last-mile change of the invoice model before the checks                   |
 
 ## APIs and downloads
 
@@ -239,22 +239,22 @@ Permissions: `CreateEInvoice`, `ReadEInvoice`, `UpdateEInvoice` (retry, void, se
 grant access to orders: `eInvoicePreview`, `eInvoiceLayoutPreview` with an `orderId` and the `EInvoice.order` field
 also need `ReadOrder` (without it, `order` is `null`).
 
-| Query / mutation | |
-|---|---|
-| `eInvoices(options)` | list with filters and sorting (incl. `type`, `status`, `orderCode`) |
-| `eInvoice(id)`, `Order.eInvoices` | documents incl. files, issues, credit notes, `remainingAmount`, `creditable`, `validation` |
-| `eInvoicePreview(orderId)` | the PDF the order would get now, with a draft number; nothing is saved |
-| `eInvoiceLayoutPreview(input)` | renders an unsaved layout (and unsaved seller data) with sample data or an order; returns the PDF, page count, where every block ended up and the layout issues |
-| `eInvoiceDefaultLayout(preset)` | a layout document to start from: default, DIN 5008 Form A/B, minimal |
-| `eInvoiceSetupStatus` | what is missing in the channel |
-| `eInvoiceChannelSettings` / `updateEInvoiceChannelSettings` | seller, payment terms, layout (rejected if the layout checks report errors) |
-| `createEInvoice(orderId)` | manual invoice; returns a BLOCKED invoice with `issues` if data is missing |
-| `retryEInvoice(id)` | BLOCKED: map the order again; FAILED: render again |
-| `voidEInvoice(id, reason)` | FAILED → VOID |
-| `createEInvoiceCreditNote(input)` | lines, shipping, amount or full reversal |
-| `cancelAndReissueEInvoice(invoiceId)` | full credit note + new invoice for the current order |
-| `createEInvoiceGuestLink(invoiceId, format)` | download link valid for `guestTtl` (7 days) |
-| `createEInvoiceZipLink(ids)` | ZIP of several issued documents |
+| Query / mutation                                            |                                                                                                                                                                 |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `eInvoices(options)`                                        | list with filters and sorting (incl. `type`, `status`, `orderCode`)                                                                                             |
+| `eInvoice(id)`, `Order.eInvoices`                           | documents incl. files, issues, credit notes, `remainingAmount`, `creditable`, `validation`                                                                      |
+| `eInvoicePreview(orderId)`                                  | the PDF the order would get now, with a draft number; nothing is saved                                                                                          |
+| `eInvoiceLayoutPreview(input)`                              | renders an unsaved layout (and unsaved seller data) with sample data or an order; returns the PDF, page count, where every block ended up and the layout issues |
+| `eInvoiceDefaultLayout(preset)`                             | a layout document to start from: default, DIN 5008 Form A/B, minimal                                                                                            |
+| `eInvoiceSetupStatus`                                       | what is missing in the channel                                                                                                                                  |
+| `eInvoiceChannelSettings` / `updateEInvoiceChannelSettings` | seller, payment terms, layout (rejected if the layout checks report errors)                                                                                     |
+| `createEInvoice(orderId)`                                   | manual invoice; returns a BLOCKED invoice with `issues` if data is missing                                                                                      |
+| `retryEInvoice(id)`                                         | BLOCKED: map the order again; FAILED: render again                                                                                                              |
+| `voidEInvoice(id, reason)`                                  | FAILED → VOID                                                                                                                                                   |
+| `createEInvoiceCreditNote(input)`                           | lines, shipping, amount or full reversal                                                                                                                        |
+| `cancelAndReissueEInvoice(invoiceId)`                       | full credit note + new invoice for the current order                                                                                                            |
+| `createEInvoiceGuestLink(invoiceId, format)`                | download link valid for `guestTtl` (7 days)                                                                                                                     |
+| `createEInvoiceZipLink(ids)`                                | ZIP of several issued documents                                                                                                                                 |
 
 ### Shop API
 
@@ -264,7 +264,17 @@ query {
     orders {
       items {
         code
-        eInvoices { number type issueDate totalWithTax files { format fileName downloadUrl } }
+        eInvoices {
+          number
+          type
+          issueDate
+          totalWithTax
+          files {
+            format
+            fileName
+            downloadUrl
+          }
+        }
       }
     }
   }
@@ -340,11 +350,11 @@ validation: { validator: new KositHttpValidator({ url: 'http://kosit:8080/' }), 
 
 ## Storage
 
-| Strategy | |
-|---|---|
-| `DatabaseInvoiceStorageStrategy` (default) | files in the `e_invoice_blob` table: no setup, covered by your database backup, written in the same transaction |
-| `LocalFileInvoiceStorageStrategy({ dir })` | `<dir>/<channel>/<year>/<file>`; server and worker must share the directory; never use a publicly served directory |
-| `S3InvoiceStorageStrategy({ bucket, prefix, clientConfig })` | needs `@aws-sdk/client-s3`; keep the bucket private |
+| Strategy                                                     |                                                                                                                    |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| `DatabaseInvoiceStorageStrategy` (default)                   | files in the `e_invoice_blob` table: no setup, covered by your database backup, written in the same transaction    |
+| `LocalFileInvoiceStorageStrategy({ dir })`                   | `<dir>/<channel>/<year>/<file>`; server and worker must share the directory; never use a publicly served directory |
+| `S3InvoiceStorageStrategy({ bucket, prefix, clientConfig })` | needs `@aws-sdk/client-s3`; keep the bucket private                                                                |
 
 Files are never overwritten or deleted by the plugin. Invoices must not be stored with the `AssetStorageStrategy`,
 because assets are public.
@@ -378,6 +388,8 @@ pnpm install
 pnpm test                   # unit + e2e (sql.js)
 TEST_DB=postgres pnpm test  # e2e against Postgres (pnpm db:up first)
 pnpm typecheck              # plugin and dashboard extension
+pnpm lint                   # ESLint (pnpm lint:fix to fix what can be fixed)
+pnpm format                 # Prettier (pnpm format:check in CI)
 pnpm dashboard:build        # dashboard incl. the extension → test/__output__/dashboard
 pnpm db:up && pnpm dev      # dev server on http://localhost:3050 (/dashboard, superadmin / superadmin)
 pnpm validate [dir]         # KoSIT (XRechnung/EN 16931), Mustang (ZUGFeRD), veraPDF (PDF/A-3b)
@@ -389,6 +401,9 @@ pnpm validate test/__output__/e2e # validate the invoices generated from e2e ord
 
 The sql.js e2e tests cache their seeded database in `test/__data__/`. Delete that folder after changing
 entities, custom fields or test fixtures.
+
+CI runs lint, formatting and `pnpm audit --prod` next to the tests; CodeQL scans the code and the workflows, and
+Dependabot proposes dependency and GitHub Actions updates weekly.
 
 ## License
 

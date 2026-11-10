@@ -58,7 +58,7 @@ export function CreditNoteDialog({ invoiceId, open, onClose }: Props) {
     if (!creditable) return 0;
     if (fullReversal) return creditable.remainingTotal;
     const lines = creditable.lines.reduce((total, line) => {
-      const qty = line.orderLineId ? quantities[line.orderLineId] ?? 0 : 0;
+      const qty = line.orderLineId ? (quantities[line.orderLineId] ?? 0) : 0;
       return line.remainingQuantity ? total + Math.round((line.remainingGross * qty) / line.remainingQuantity) : total;
     }, 0);
     return lines + (shipping ? creditable.chargesGross : 0) + amount;
@@ -159,12 +159,7 @@ export function CreditNoteDialog({ invoiceId, open, onClose }: Props) {
                   </TableBody>
                 </Table>
                 <div className="flex items-center gap-2">
-                  <Switch
-                    id="credit-shipping"
-                    checked={shipping}
-                    disabled={creditable.chargesGross === 0}
-                    onCheckedChange={setShipping}
-                  />
+                  <Switch id="credit-shipping" checked={shipping} disabled={creditable.chargesGross === 0} onCheckedChange={setShipping} />
                   <Label htmlFor="credit-shipping">
                     Credit shipping and surcharges (<Money value={creditable.chargesGross} currency={currency} />)
                   </Label>
@@ -186,7 +181,10 @@ export function CreditNoteDialog({ invoiceId, open, onClose }: Props) {
               <Textarea id="credit-note-text" value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Return of 1 item" />
             </div>
             <div className="text-right text-sm">
-              Estimated credit: <span className="font-semibold"><Money value={estimate} currency={currency} /></span>
+              Estimated credit:{' '}
+              <span className="font-semibold">
+                <Money value={estimate} currency={currency} />
+              </span>
             </div>
           </div>
         )}

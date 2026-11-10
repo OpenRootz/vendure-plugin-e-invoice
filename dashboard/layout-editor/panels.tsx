@@ -164,7 +164,10 @@ export function Properties({
     set({ props: Object.keys(props).length ? props : undefined });
   };
   const anchorTargets = layout.blocks.filter(
-    (b) => b.key !== block.key && !dependsOn(layout, b.key, block.key) && !layout.blocks.some((o) => o.anchor?.to === b.key && o.key !== block.key),
+    (b) =>
+      b.key !== block.key &&
+      !dependsOn(layout, b.key, block.key) &&
+      !layout.blocks.some((o) => o.anchor?.to === b.key && o.key !== block.key),
   );
   const text = typeof block.props?.text === 'string' ? block.props.text : '';
   const removable = block.type === 'customText' || block.type === 'image' || block.type === 'pageNumber';
@@ -194,7 +197,12 @@ export function Properties({
           id={id('overflow')}
           className={selectClass}
           value={block.overflow}
-          onChange={(e) => set({ overflow: e.target.value as Block['overflow'], frame: { ...block.frame, h: Math.max(block.frame.h, e.target.value === 'fixed' ? 100 : 0) } })}
+          onChange={(e) =>
+            set({
+              overflow: e.target.value as Block['overflow'],
+              frame: { ...block.frame, h: Math.max(block.frame.h, e.target.value === 'fixed' ? 100 : 0) },
+            })
+          }
         >
           <option value="grow">Grows with its content (continues on the next page)</option>
           <option value="fixed">Fixed frame</option>
@@ -224,7 +232,12 @@ export function Properties({
       </Row>
       {block.overflow === 'fixed' && !block.anchor && (
         <Row label="Pages" htmlFor={id('pages')}>
-          <select id={id('pages')} className={selectClass} value={block.pages} onChange={(e) => set({ pages: e.target.value as Block['pages'] })}>
+          <select
+            id={id('pages')}
+            className={selectClass}
+            value={block.pages}
+            onChange={(e) => set({ pages: e.target.value as Block['pages'] })}
+          >
             <option value="first">First page</option>
             <option value="all">All pages</option>
             <option value="following">Following pages</option>
@@ -246,10 +259,21 @@ export function Properties({
           />
         </Row>
         <Row label="Color" htmlFor={id('color')}>
-          <Input id={id('color')} className="h-8" placeholder="#333333" value={block.style?.color ?? ''} onChange={(e) => setStyle({ color: e.target.value || undefined })} />
+          <Input
+            id={id('color')}
+            className="h-8"
+            placeholder="#333333"
+            value={block.style?.color ?? ''}
+            onChange={(e) => setStyle({ color: e.target.value || undefined })}
+          />
         </Row>
         <Row label="Alignment" htmlFor={id('align')}>
-          <select id={id('align')} className={selectClass} value={block.style?.align ?? ''} onChange={(e) => setStyle({ align: (e.target.value || undefined) as never })}>
+          <select
+            id={id('align')}
+            className={selectClass}
+            value={block.style?.align ?? ''}
+            onChange={(e) => setStyle({ align: (e.target.value || undefined) as never })}
+          >
             <option value="">Default</option>
             <option value="left">Left</option>
             <option value="center">Center</option>
@@ -266,13 +290,19 @@ export function Properties({
         <Row label={block.type === 'footer' ? 'Additional footer line' : 'Text'} htmlFor={id('text')}>
           <Textarea id={id('text')} maxLength={2000} value={text} onChange={(e) => setProp('text', e.target.value || undefined)} />
           {block.type === 'customText' && (
-            <p className="text-xs text-muted-foreground">Placeholders: {'{number}'}, {'{issueDate}'}, {'{orderCode}'}, {'{buyerName}'} (no amounts)</p>
+            <p className="text-xs text-muted-foreground">
+              Placeholders: {'{number}'}, {'{issueDate}'}, {'{orderCode}'}, {'{buyerName}'} (no amounts)
+            </p>
           )}
         </Row>
       )}
       {block.type === 'footer' && (
         <label className="flex items-center gap-2 text-xs">
-          <input type="checkbox" checked={!!block.props?.pageNumber} onChange={(e) => setProp('pageNumber', e.target.checked || undefined)} />
+          <input
+            type="checkbox"
+            checked={!!block.props?.pageNumber}
+            onChange={(e) => setProp('pageNumber', e.target.checked || undefined)}
+          />
           Page number in the footer
         </label>
       )}
@@ -305,7 +335,12 @@ export function Properties({
 }
 
 /** Detail rows that print mandatory content (§14 UStG). */
-const MANDATORY_ROWS: Partial<Record<DetailField, string>> = { number: 'number', issueDate: 'issueDate', deliveryDate: 'deliveryDate', sellerTaxId: 'sellerTaxId' };
+const MANDATORY_ROWS: Partial<Record<DetailField, string>> = {
+  number: 'number',
+  issueDate: 'issueDate',
+  deliveryDate: 'deliveryDate',
+  sellerTaxId: 'sellerTaxId',
+};
 
 function DetailFields({ layout, block, onChange }: { layout: LayoutDocument; block: Block; onChange: (fields: DetailField[]) => void }) {
   const fields = detailFields(block);
@@ -353,7 +388,9 @@ function DetailFields({ layout, block, onChange }: { layout: LayoutDocument; blo
 
 function PageProperties({ layout, onChange }: { layout: LayoutDocument; onChange: (layout: LayoutDocument) => void }) {
   const theme = (change: Partial<LayoutDocument['theme']>) => onChange({ ...layout, theme: { ...layout.theme, ...change } });
-  const fonts = useQuery({ queryKey: ['e-invoice-layout-fonts'], queryFn: () => api.query(layoutFontsDocument), staleTime: Infinity }).data?.eInvoiceLayoutFonts ?? [];
+  const fonts =
+    useQuery({ queryKey: ['e-invoice-layout-fonts'], queryFn: () => api.query(layoutFontsDocument), staleTime: Infinity }).data
+      ?.eInvoiceLayoutFonts ?? [];
   const font = layout.theme.font;
   return (
     <div className="space-y-3 text-sm">
@@ -366,7 +403,12 @@ function PageProperties({ layout, onChange }: { layout: LayoutDocument; onChange
             value={/^#[0-9a-f]{6}$/i.test(layout.theme.accentColor) ? layout.theme.accentColor : '#333333'}
             onChange={(e) => theme({ accentColor: e.target.value })}
           />
-          <Input id="e-invoice-theme-accent" className="h-8" value={layout.theme.accentColor} onChange={(e) => theme({ accentColor: e.target.value })} />
+          <Input
+            id="e-invoice-theme-accent"
+            className="h-8"
+            value={layout.theme.accentColor}
+            onChange={(e) => theme({ accentColor: e.target.value })}
+          />
         </div>
       </Row>
       <Row label="Font size (pt)" htmlFor="e-invoice-theme-size">
@@ -382,7 +424,12 @@ function PageProperties({ layout, onChange }: { layout: LayoutDocument; onChange
         />
       </Row>
       <Row label="Font" htmlFor="e-invoice-theme-font">
-        <select id="e-invoice-theme-font" className={selectClass} value={font ?? ''} onChange={(e) => theme({ font: e.target.value || undefined })}>
+        <select
+          id="e-invoice-theme-font"
+          className={selectClass}
+          value={font ?? ''}
+          onChange={(e) => theme({ font: e.target.value || undefined })}
+        >
           <option value="">Default{fonts[0] ? ` (${fonts[0]})` : ''}</option>
           {fonts.slice(1).map((f) => (
             <option key={f} value={f}>
@@ -395,10 +442,20 @@ function PageProperties({ layout, onChange }: { layout: LayoutDocument; onChange
       </Row>
       <div className="grid grid-cols-2 gap-2">
         <Row label="Flow starts on following pages (mm)" htmlFor="e-invoice-cont-top">
-          <MmInput id="e-invoice-cont-top" value={layout.continuation.top} min={0} onChange={(v) => onChange({ ...layout, continuation: { ...layout.continuation, top: v } })} />
+          <MmInput
+            id="e-invoice-cont-top"
+            value={layout.continuation.top}
+            min={0}
+            onChange={(v) => onChange({ ...layout, continuation: { ...layout.continuation, top: v } })}
+          />
         </Row>
         <Row label="Flow ends above the bottom (mm)" htmlFor="e-invoice-cont-bottom">
-          <MmInput id="e-invoice-cont-bottom" value={layout.continuation.bottom} min={0} onChange={(v) => onChange({ ...layout, continuation: { ...layout.continuation, bottom: v } })} />
+          <MmInput
+            id="e-invoice-cont-bottom"
+            value={layout.continuation.bottom}
+            min={0}
+            onChange={(v) => onChange({ ...layout, continuation: { ...layout.continuation, bottom: v } })}
+          />
         </Row>
       </div>
       <Row label="Window envelope check (DIN 5008)" htmlFor="e-invoice-window">
@@ -413,7 +470,9 @@ function PageProperties({ layout, onChange }: { layout: LayoutDocument; onChange
           <option value="B">Form B (window at 45 mm)</option>
         </select>
       </Row>
-      <p className="text-xs text-muted-foreground">Select a block on the page or in the list to edit it. Shift while dragging turns snapping off.</p>
+      <p className="text-xs text-muted-foreground">
+        Select a block on the page or in the list to edit it. Shift while dragging turns snapping off.
+      </p>
     </div>
   );
 }

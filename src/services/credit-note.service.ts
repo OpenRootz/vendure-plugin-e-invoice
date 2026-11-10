@@ -105,9 +105,7 @@ export class CreditNoteService {
       return undefined;
     };
 
-    const modification = await this.connection
-      .getRepository(ctx, OrderModification)
-      .findOne({ where: { refund: { id: refundId } } });
+    const modification = await this.connection.getRepository(ctx, OrderModification).findOne({ where: { refund: { id: refundId } } });
     if (modification) return skip('it belongs to an order modification (handled by cancel and reissue)');
 
     const invoice = await this.latestInvoice(ctx, orderId);

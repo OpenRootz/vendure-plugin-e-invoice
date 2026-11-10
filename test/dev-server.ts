@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 // Local dev server: fresh Postgres DB (docker compose) seeded with a German shop + the plugin.
 //   pnpm db:up && pnpm dev     → http://localhost:3050/admin-api, /shop-api
 //   pnpm dashboard:build first → the dashboard with the plugin's extension at /dashboard

@@ -53,7 +53,13 @@ function toInput(s: ChannelSettings) {
     enabled: s.enabled,
     autoIssue: s.autoIssue,
     seller: {
-      ...clean({ name: seller.name, tradingName: seller.tradingName, vatId: seller.vatId, taxNumber: seller.taxNumber, legalInfo: seller.legalInfo }),
+      ...clean({
+        name: seller.name,
+        tradingName: seller.tradingName,
+        vatId: seller.vatId,
+        taxNumber: seller.taxNumber,
+        legalInfo: seller.legalInfo,
+      }),
       address: clean(seller.address),
       contact: clean(seller.contact),
       electronicAddress: clean(seller.electronicAddress, ['scheme', 'value']),
@@ -189,7 +195,12 @@ export function SettingsPage() {
             <Field label="Country code" path="seller.address.countryCode" hint="ISO 3166-1, e.g. DE" {...fieldProps} />
             <Field label="VAT ID" path="seller.vatId" hint="e.g. DE123456789" {...fieldProps} />
             <Field label="Tax number" path="seller.taxNumber" hint="Steuernummer, if there is no VAT ID" {...fieldProps} />
-            <Field label="Commercial register" path="seller.legalRegistration.id" hint="e.g. HRB 12345, Amtsgericht Berlin" {...fieldProps} />
+            <Field
+              label="Commercial register"
+              path="seller.legalRegistration.id"
+              hint="e.g. HRB 12345, Amtsgericht Berlin"
+              {...fieldProps}
+            />
             <Field label="Legal information" path="seller.legalInfo" hint="e.g. managing directors" {...fieldProps} />
           </div>
         </PageBlock>
@@ -200,7 +211,12 @@ export function SettingsPage() {
             <Field label="Email" path="seller.contact.email" {...fieldProps} />
             <div />
             <Field label="Electronic address scheme" path="seller.electronicAddress.scheme" hint="EM = email" {...fieldProps} />
-            <Field label="Electronic address" path="seller.electronicAddress.value" hint="Where buyers send e-invoices, e.g. rechnung@example.com" {...fieldProps} />
+            <Field
+              label="Electronic address"
+              path="seller.electronicAddress.value"
+              hint="Where buyers send e-invoices, e.g. rechnung@example.com"
+              {...fieldProps}
+            />
           </div>
         </PageBlock>
         <PageBlock column="main" blockId="e-invoice-payment" title="Bank account and payment terms">

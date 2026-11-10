@@ -1,0 +1,10 @@
+dist/
+coverage/
+node_modules/
+pnpm-lock.yaml
+.validate-tools/
+test/__data__/
+test/__output__/
+# Golden files are compared byte by byte
+test/golden/
+test/fixtures/products.csv

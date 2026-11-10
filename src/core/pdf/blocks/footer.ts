@@ -15,7 +15,12 @@ export const footer: BlockRenderer = ({ model, labels, block, width, page, pageC
         columns: [
           col([s.name, s.address.line1, `${s.address.postalCode} ${s.address.city}`]),
           col([s.contact.phone && `${labels.phone} ${s.contact.phone}`, s.contact.email && `${labels.email} ${s.contact.email}`]),
-          col([s.vatId && `${labels.vatId} ${s.vatId}`, s.taxNumber && `${labels.taxNumber} ${s.taxNumber}`, s.legalRegistration?.id, s.legalInfo]),
+          col([
+            s.vatId && `${labels.vatId} ${s.vatId}`,
+            s.taxNumber && `${labels.taxNumber} ${s.taxNumber}`,
+            s.legalRegistration?.id,
+            s.legalInfo,
+          ]),
           col([bank && `IBAN ${formatIban(bank.iban)}`, bank?.bic && `BIC ${bank.bic}`]),
         ],
         columnGap: 8,

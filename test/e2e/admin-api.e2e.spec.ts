@@ -147,7 +147,8 @@ describe('Admin API', () => {
   /** While set, the buyer name is removed, so new invoices are BLOCKED */
   let blockBuyer = false;
   const mapping = {
-    transformModel: (_ctx: RequestContext, model: EInvoiceModel) => (blockBuyer ? { ...model, buyer: { ...model.buyer, name: '' } } : model),
+    transformModel: (_ctx: RequestContext, model: EInvoiceModel) =>
+      blockBuyer ? { ...model, buyer: { ...model.buyer, name: '' } } : model,
   };
   const { server, adminClient, shopClient } = createTestEnvironment(createConfig({ pdfStrategy, mapping }));
   const orders: { id: string; code: string }[] = [];
@@ -302,7 +303,10 @@ describe('Admin API', () => {
     expect(createEInvoice.status).toBe('BLOCKED');
     blockBuyer = false;
 
-    await Promise.allSettled([adminClient.query(RETRY_INVOICE, { id: createEInvoice.id }), adminClient.query(RETRY_INVOICE, { id: createEInvoice.id })]);
+    await Promise.allSettled([
+      adminClient.query(RETRY_INVOICE, { id: createEInvoice.id }),
+      adminClient.query(RETRY_INVOICE, { id: createEInvoice.id }),
+    ]);
     const invoices = await waitForInvoices(adminClient, order.id, issued);
     expect(invoices.map((i) => i.type)).toEqual(['INVOICE']);
   });

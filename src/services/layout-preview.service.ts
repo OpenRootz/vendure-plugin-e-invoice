@@ -99,11 +99,18 @@ export class LayoutPreviewService {
       if (!order) throw new UserInputError(`Order ${input.orderId} not found`);
       const mapped = await this.mapper.toModel(ctx, order);
       if (!mapped) {
-        return { ...empty, layoutIssues: [], issues: [{ code: 'SELLER_INCOMPLETE', message: 'E-invoicing is not set up for this channel (no seller data)' }] };
+        return {
+          ...empty,
+          layoutIssues: [],
+          issues: [{ code: 'SELLER_INCOMPLETE', message: 'E-invoicing is not set up for this channel (no seller data)' }],
+        };
       }
       model = mapped.model;
       if (input.seller && this.defaultSellerStrategy()) model.seller = sellerFromSettings(sellerSettings);
-      model.totals = calculate(model, { expectedTotalWithTax: order.totalWithTax, fallbackThreshold: this.options.roundingFallbackThreshold });
+      model.totals = calculate(model, {
+        expectedTotalWithTax: order.totalWithTax,
+        fallbackThreshold: this.options.roundingFallbackThreshold,
+      });
     } else {
       const seller = await this.sampleSeller(ctx, sellerSettings, paymentSettings, issues);
       model = this.sample(ctx, input.sample ?? 'b2b-net', seller, input.language);
@@ -128,7 +135,11 @@ export class LayoutPreviewService {
         pageCount: rendered.pageCount,
         issues: [...issues, ...rendered.issues],
         blocks: rendered.layout?.measurement.boxes ?? [],
-        layoutIssues: dedupe([...saveIssues.filter((i) => i.level === 'error' || i.code === 'FONT_REDUCED'), ...current, ...(rendered.layout?.issues ?? [])]),
+        layoutIssues: dedupe([
+          ...saveIssues.filter((i) => i.level === 'error' || i.code === 'FONT_REDUCED'),
+          ...current,
+          ...(rendered.layout?.issues ?? []),
+        ]),
       };
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
@@ -140,7 +151,12 @@ export class LayoutPreviewService {
    * Resolves the layout input and validates it completely: structure, texts and images, and the layout checks
    * against the worst-case sample (content coverage, clipping, …). Throws a `UserInputError` listing the errors.
    */
-  async prepareLayout(ctx: RequestContext, input: LayoutInput, seller?: SellerSettings | null, payment?: PaymentSettings | null): Promise<LayoutSettings> {
+  async prepareLayout(
+    ctx: RequestContext,
+    input: LayoutInput,
+    seller?: SellerSettings | null,
+    payment?: PaymentSettings | null,
+  ): Promise<LayoutSettings> {
     const resolved = resolveLayoutInput(input);
     const fail = (issues: LayoutIssue[]) => {
       throw new UserInputError(`Invalid layout: ${issues.map((i) => i.message).join('; ')}`);
@@ -150,7 +166,9 @@ export class LayoutPreviewService {
     await this.settings.assertValidLayout(ctx, layout);
     const saved = await this.settings.get(ctx);
     const errors = (
-      await this.limited(() => this.checkLayout(ctx, layout, seller ? compact(seller) : saved.seller, payment ? compact(payment) : saved.payment))
+      await this.limited(() =>
+        this.checkLayout(ctx, layout, seller ? compact(seller) : saved.seller, payment ? compact(payment) : saved.payment),
+      )
     ).filter((i) => i.level === 'error');
     if (errors.length) fail(errors);
     return layout;
@@ -160,14 +178,21 @@ export class LayoutPreviewService {
    * The layout checks with the worst-case sample. Measured like at render time: a fixed block whose content does
    * not fit gets a smaller font (down to 6 pt, reported as FONT_REDUCED); only what still does not fit is an error.
    */
-  private async checkLayout(ctx: RequestContext, layout: LayoutSettings, seller: SellerSettings, payment: PaymentSettings): Promise<LayoutIssue[]> {
+  private async checkLayout(
+    ctx: RequestContext,
+    layout: LayoutSettings,
+    seller: SellerSettings,
+    payment: PaymentSettings,
+  ): Promise<LayoutIssue[]> {
     const fonts = this.options.pdf.fonts ?? defaultFonts();
     const fontNames = Object.keys(fonts);
     // Without the font nothing can be laid out; report it (static check) and measure with the default font
     const unknownFont = !!layout.theme.font && !fontNames.includes(layout.theme.font);
     const measured: LayoutSettings = unknownFont ? { ...layout, theme: { ...layout.theme, font: undefined } } : layout;
     const data = await this.sampleSeller(ctx, seller, payment, []);
-    const issues: LayoutIssue[] = unknownFont ? checkLayout(layout, undefined, undefined, { fonts: fontNames }).filter((i) => i.code === 'UNKNOWN_FONT') : [];
+    const issues: LayoutIssue[] = unknownFont
+      ? checkLayout(layout, undefined, undefined, { fonts: fontNames }).filter((i) => i.code === 'UNKNOWN_FONT')
+      : [];
     // Invoices can be issued in any of these languages; labels and sample texts differ in length
     for (const language of this.checkLanguages(ctx)) {
       const model = this.sample(ctx, 'worst-case', data, language);
@@ -180,7 +205,9 @@ export class LayoutPreviewService {
       issues.push(...checkLayout(measured, result.measurement, undefined, { fonts: fontNames }), ...reduced);
     }
     // One issue per block and code (e.g. the smallest reduced font is reported by the first language that needs it)
-    return issues.filter((x, i) => issues.findIndex((y) => y.code === x.code && (x.blockKey ? y.blockKey === x.blockKey : y.message === x.message)) === i);
+    return issues.filter(
+      (x, i) => issues.findIndex((y) => y.code === x.code && (x.blockKey ? y.blockKey === x.blockKey : y.message === x.message)) === i,
+    );
   }
 
   /** The channel language plus German and English (the built-in labels). */
@@ -215,7 +242,12 @@ export class LayoutPreviewService {
    * Seller of the sample invoice: the (draft) settings with the default seller strategy. A custom strategy needs an
    * order, so the latest order is used if there is one; otherwise the settings, with an info issue.
    */
-  private async sampleSeller(ctx: RequestContext, seller: SellerSettings, payment: PaymentSettings, issues: SetupIssue[]): Promise<SellerData> {
+  private async sampleSeller(
+    ctx: RequestContext,
+    seller: SellerSettings,
+    payment: PaymentSettings,
+    issues: SetupIssue[],
+  ): Promise<SellerData> {
     const fromSettings: SellerData = {
       seller: sellerFromSettings(seller),
       bank: seller.bank?.iban ? seller.bank : undefined,
@@ -271,7 +303,9 @@ export function resolveLayoutInput(input: LayoutInput): { layout?: LayoutSetting
   }
   const tooLong = Object.entries(v1).filter(([, v]) => (v?.length ?? 0) > 2000);
   if (tooLong.length) {
-    return { issues: tooLong.map(([k]) => ({ level: 'error' as const, code: 'TEXT_TOO_LONG', message: `${k} is longer than 2000 characters` })) };
+    return {
+      issues: tooLong.map(([k]) => ({ level: 'error' as const, code: 'TEXT_TOO_LONG', message: `${k} is longer than 2000 characters` })),
+    };
   }
   const layout: LayoutSettings = Object.keys(v1).length ? patchLayout(base, v1) : base;
   if (!blank(input.logoAssetId) && input.logoAssetId !== '') layout.logoAssetId = input.logoAssetId as ID;

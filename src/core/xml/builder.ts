@@ -25,7 +25,11 @@ export function optEl(name: string, attrs: Record<string, string | undefined> = 
 }
 
 /** A text-only element, or `undefined` if the value is empty. */
-export function textEl(name: string, value: string | undefined | null, attrs: Record<string, string | undefined> = {}): XmlElement | undefined {
+export function textEl(
+  name: string,
+  value: string | undefined | null,
+  attrs: Record<string, string | undefined> = {},
+): XmlElement | undefined {
   return value === undefined || value === null || value === '' ? undefined : el(name, attrs, value);
 }
 

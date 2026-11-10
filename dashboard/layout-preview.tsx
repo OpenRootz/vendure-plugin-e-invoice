@@ -99,12 +99,21 @@ export function PreviewToolbar({
           </option>
         ))}
       </select>
-      <select aria-label="Language" className={selectClass} value={options.language} onChange={(e) => onChange({ ...options, language: e.target.value })}>
+      <select
+        aria-label="Language"
+        className={selectClass}
+        value={options.language}
+        onChange={(e) => onChange({ ...options, language: e.target.value })}
+      >
         <option value="de">Deutsch</option>
         <option value="en">English</option>
       </select>
       <label className="flex items-center gap-1">
-        <input type="checkbox" checked={options.useLatestOrder} onChange={(e) => onChange({ ...options, useLatestOrder: e.target.checked })} />
+        <input
+          type="checkbox"
+          checked={options.useLatestOrder}
+          onChange={(e) => onChange({ ...options, useLatestOrder: e.target.checked })}
+        />
         Latest order
       </label>
       {pageCount > 1 && (

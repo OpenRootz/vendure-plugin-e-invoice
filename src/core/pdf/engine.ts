@@ -66,8 +66,17 @@ export function measureLayout(layout: PdfLayoutV2, plan: LayoutPlan, probe: Layo
         const height = end.top - start.top;
         contentHeight[block.key] = height;
         const h = Math.max(fromPt(height), block.frame.h);
-        const overflowBy = block.overflow === 'fixed' && height > toPt(block.frame.h) + TOLERANCE ? fromPt(height) - block.frame.h : undefined;
-        boxes.push({ key: block.key, page: start.page, x, y: fromPt(start.top), w, h: block.overflow === 'fixed' ? block.frame.h : h, ...(overflowBy ? { overflowBy } : {}) });
+        const overflowBy =
+          block.overflow === 'fixed' && height > toPt(block.frame.h) + TOLERANCE ? fromPt(height) - block.frame.h : undefined;
+        boxes.push({
+          key: block.key,
+          page: start.page,
+          x,
+          y: fromPt(start.top),
+          w,
+          h: block.overflow === 'fixed' ? block.frame.h : h,
+          ...(overflowBy ? { overflowBy } : {}),
+        });
       } else {
         for (let page = start.page; page <= end.page; page++) {
           const top = page === start.page ? start.top : contTop;
@@ -86,7 +95,15 @@ export function measureLayout(layout: PdfLayoutV2, plan: LayoutPlan, probe: Layo
       const height = end.top - start.top;
       contentHeight[block.key] = Math.max(contentHeight[block.key] ?? 0, height);
       const overflowBy = height > toPt(block.frame.h) + TOLERANCE ? fromPt(height) - block.frame.h : undefined;
-      boxes.push({ key: block.key, page: start.page, x: block.frame.x, y: plan.staticY[block.key], w: block.frame.w, h: block.frame.h, ...(overflowBy ? { overflowBy } : {}) });
+      boxes.push({
+        key: block.key,
+        page: start.page,
+        x: block.frame.x,
+        y: plan.staticY[block.key],
+        w: block.frame.w,
+        h: block.frame.h,
+        ...(overflowBy ? { overflowBy } : {}),
+      });
     }
   }
   boxes.sort((a, b) => a.page - b.page || a.y - b.y || a.x - b.x);
@@ -106,7 +123,12 @@ export interface LayoutDocumentOptions {
  * from the measured positions; with `fit`, overflowing fixed blocks get a smaller font. Returns the final
  * document definition (page count resolved) and where every block ended up.
  */
-export async function layoutDocument(layout: PdfLayoutV2, input: LayoutRenderInput, fonts: PdfFonts, opts: LayoutDocumentOptions = {}): Promise<LayoutResult> {
+export async function layoutDocument(
+  layout: PdfLayoutV2,
+  input: LayoutRenderInput,
+  fonts: PdfFonts,
+  opts: LayoutDocumentOptions = {},
+): Promise<LayoutResult> {
   const fit = opts.fit ?? true;
   // The page count is part of the options: every pass is compiled fresh with a known count (pdfmake reports
   // each node to pageBreakBefore only once per definition)
@@ -141,7 +163,12 @@ export async function layoutDocument(layout: PdfLayoutV2, input: LayoutRenderInp
     const block = layout.blocks.find((b) => b.key === key);
     if (!block || measurement!.boxes.some((b) => b.key === key && b.overflowBy)) continue;
     const size = Math.round((block.style?.fontSize ?? layout.theme.fontSize) * scale * 10) / 10;
-    issues.push({ level: 'warning', code: 'FONT_REDUCED', message: `The font of block ${key} is reduced to ${size} pt so that the content fits`, blockKey: key });
+    issues.push({
+      level: 'warning',
+      code: 'FONT_REDUCED',
+      message: `The font of block ${key} is reduced to ${size} pt so that the content fits`,
+      blockKey: key,
+    });
   }
   return { definition: final.definition, plan: final.plan, measurement: measurement!, issues, options };
 }
