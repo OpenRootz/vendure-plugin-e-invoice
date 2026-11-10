@@ -7,6 +7,8 @@ export interface PdfLabels {
   locale: string;
   invoice: string;
   creditNote: string;
+  /** Placeholder number of a preview that has not been issued */
+  draft: string;
   invoiceNumber: string;
   creditNoteNumber: string;
   invoiceDate: string;
@@ -58,6 +60,7 @@ export const DEFAULT_LABELS: Record<string, PdfLabels> = {
     locale: 'de-DE',
     invoice: 'Rechnung',
     creditNote: 'Rechnungskorrektur',
+    draft: 'ENTWURF',
     invoiceNumber: 'Rechnungsnummer',
     creditNoteNumber: 'Korrekturnummer',
     invoiceDate: 'Rechnungsdatum',
@@ -106,6 +109,7 @@ export const DEFAULT_LABELS: Record<string, PdfLabels> = {
     locale: 'en-GB',
     invoice: 'Invoice',
     creditNote: 'Credit note',
+    draft: 'DRAFT',
     invoiceNumber: 'Invoice number',
     creditNoteNumber: 'Credit note number',
     invoiceDate: 'Invoice date',

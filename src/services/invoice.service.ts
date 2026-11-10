@@ -5,7 +5,10 @@ import {
   idsAreEqual,
   JobQueue,
   JobQueueService,
+  ListQueryBuilder,
+  ListQueryOptions,
   Logger,
+  PaginatedList,
   OrderStateTransitionEvent,
   Refund,
   RefundStateTransitionEvent,
@@ -16,13 +19,13 @@ import {
 } from '@vendure/core';
 
 import { E_INVOICE_QUEUE, loggerCtx, PLUGIN_INIT_OPTIONS } from '../constants';
-import { calculate, checkModel, CreditNoteRequest, toCii } from '../core';
+import { calculate, checkModel, CreditNoteRequest, pdfLabels, toCii } from '../core';
 import { EInvoice, EInvoiceReason } from '../entities';
 import { EInvoiceBlockedEvent } from '../events';
 import { OrderModelMapper, orderFingerprint } from '../mapping/order-model.mapper';
 import { ResolvedEInvoicePluginOptions } from '../options';
 
-import { ChannelSettingsService } from './channel-settings.service';
+import { ChannelSettingsService, SetupIssue } from './channel-settings.service';
 import { CreditNoteService, NUMBERED_STATUSES } from './credit-note.service';
 import { InvoiceNumberService } from './invoice-number.service';
 import { InvoiceRenderService } from './invoice-render.service';
@@ -64,6 +67,7 @@ export class InvoiceService implements OnApplicationBootstrap {
     private settings: ChannelSettingsService,
     private renderer: InvoiceRenderService,
     private creditNotes: CreditNoteService,
+    private listQueryBuilder: ListQueryBuilder,
   ) {}
 
   async onApplicationBootstrap() {
@@ -104,6 +108,20 @@ export class InvoiceService implements OnApplicationBootstrap {
       where: { id, channelId: ctx.channelId },
       relations: ['files'],
     });
+  }
+
+  /** Invoices and credit notes of the current channel. `orderCode` filters and sorts by the order code. */
+  async findAll(ctx: RequestContext, options?: ListQueryOptions<EInvoice>): Promise<PaginatedList<EInvoice>> {
+    const [items, totalItems] = await this.listQueryBuilder
+      .build(EInvoice, options, {
+        ctx,
+        relations: ['files', 'order'],
+        where: { channelId: ctx.channelId },
+        customPropertyMap: { orderCode: 'order.code' },
+        orderBy: { createdAt: 'DESC', id: 'DESC' },
+      })
+      .getManyAndCount();
+    return { items, totalItems };
   }
 
   findByOrder(ctx: RequestContext, orderId: ID): Promise<EInvoice[]> {
@@ -192,6 +210,55 @@ export class InvoiceService implements OnApplicationBootstrap {
     });
     await this.afterIssue(ctx, [invoice]);
     return invoice;
+  }
+
+  /**
+   * A FAILED document that can never be rendered. Its number stays used; the reason documents the gap
+   * in the number sequence.
+   */
+  async void(ctx: RequestContext, id: ID, reason: string): Promise<EInvoice> {
+    if (!reason?.trim()) throw new UserInputError('A reason is required to void an e-invoice');
+    return this.connection.withTransaction(ctx, async (txCtx) => {
+      const invoice = await this.findOne(txCtx, id);
+      if (!invoice) throw new UserInputError(`E-invoice ${id} not found`);
+      await lockOrder(this.connection, txCtx, invoice.orderId);
+      const current = await this.findOne(txCtx, id);
+      if (current?.status !== 'FAILED') {
+        throw new UserInputError(`E-invoice ${invoice.number ?? id} is ${current?.status} and cannot be voided (only FAILED)`);
+      }
+      Object.assign(current, { status: 'VOID', voidReason: reason.trim() });
+      const saved = await this.connection.getRepository(txCtx, EInvoice).save(current);
+      Logger.warn(`E-invoice ${saved.number} voided`, loggerCtx);
+      return saved;
+    });
+  }
+
+  /**
+   * Renders the invoice the order would get now, with a draft number. Nothing is saved and no number is used.
+   * Returns the problems that would block the invoice; the PDF is rendered anyway if possible.
+   */
+  async preview(ctx: RequestContext, orderId: ID): Promise<{ pdf: string | null; issues: SetupIssue[] }> {
+    const order = await this.mapper.loadOrder(ctx, orderId);
+    if (!order) throw new UserInputError(`Order ${orderId} not found`);
+    const mapped = await this.mapper.toModel(ctx, order);
+    if (!mapped) {
+      return { pdf: null, issues: [{ code: 'SELLER_INCOMPLETE', message: 'E-invoicing is not set up for this channel (no seller data)' }] };
+    }
+    const { model, formats } = mapped;
+    model.totals = calculate(model, {
+      expectedTotalWithTax: order.totalWithTax,
+      fallbackThreshold: this.options.roundingFallbackThreshold,
+    });
+    model.number = pdfLabels(model.language, this.options.pdf.translations).draft;
+    if (model.totals.duePayable > 0) model.payment.reference = model.number;
+    const issues = checkModel(model, formats);
+    try {
+      const pdf = await this.renderer.renderPdf(ctx, model);
+      return { pdf: `data:application/pdf;base64,${pdf.toString('base64')}`, issues };
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      return { pdf: null, issues: [...issues, { code: 'RENDER_FAILED', message }] };
+    }
   }
 
   /** Invoice total minus its credit notes. */

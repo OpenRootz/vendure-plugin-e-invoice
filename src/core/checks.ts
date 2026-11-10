@@ -1,6 +1,6 @@
 import { vatGroupKey } from './calculate';
 import type { CreditNoteErrorCode } from './credit-note';
-import { EInvoiceFormat, EInvoiceModel, InvoiceLine, VatCategory, VatCategoryCode } from './model';
+import { EInvoiceFormat, EInvoiceModel, InvoiceLine, Seller, VatCategory, VatCategoryCode } from './model';
 import { isZeroDecimal, multiply, sum } from './money';
 
 /**
@@ -76,24 +76,8 @@ export function checkModel(model: EInvoiceModel, formats: EInvoiceFormat[]): Inv
   }
 
   // --- seller (BG-4, BG-6) ---
+  issues.push(...checkSeller(model.seller));
   const seller = model.seller;
-  const missingSeller = [
-    isBlank(seller.name) && 'name',
-    isBlank(seller.address.line1) && 'street',
-    isBlank(seller.address.postalCode) && 'postal code',
-    isBlank(seller.address.city) && 'city',
-    isBlank(seller.address.countryCode) && 'country',
-    isBlank(seller.contact.name) && 'contact name',
-    isBlank(seller.contact.phone) && 'contact phone',
-    isBlank(seller.contact.email) && 'contact email',
-    isBlank(seller.electronicAddress?.value) && 'electronic address (e.g. invoice email)',
-  ].filter(Boolean);
-  if (missingSeller.length) {
-    add('SELLER_INCOMPLETE', `Seller data is incomplete: ${missingSeller.join(', ')}`, 'seller');
-  }
-  if (isBlank(seller.vatId) && isBlank(seller.taxNumber)) {
-    add('SELLER_TAX_ID_MISSING', 'The seller needs a VAT ID or a tax number', 'seller.vatId');
-  }
 
   // --- buyer (BG-7) ---
   const buyer = model.buyer;
@@ -191,6 +175,29 @@ export function checkModel(model: EInvoiceModel, formats: EInvoiceFormat[]): Inv
     }
   });
 
+  return issues;
+}
+
+/** Seller data required by EN 16931 and XRechnung (BG-4, BG-6, BT-31/BT-32, BT-34). */
+export function checkSeller(seller: Seller): InvoiceIssue[] {
+  const issues: InvoiceIssue[] = [];
+  const missing = [
+    isBlank(seller.name) && 'name',
+    isBlank(seller.address.line1) && 'street',
+    isBlank(seller.address.postalCode) && 'postal code',
+    isBlank(seller.address.city) && 'city',
+    isBlank(seller.address.countryCode) && 'country',
+    isBlank(seller.contact.name) && 'contact name',
+    isBlank(seller.contact.phone) && 'contact phone',
+    isBlank(seller.contact.email) && 'contact email',
+    isBlank(seller.electronicAddress?.value) && 'electronic address (e.g. invoice email)',
+  ].filter(Boolean);
+  if (missing.length) {
+    issues.push({ code: 'SELLER_INCOMPLETE', message: `Seller data is incomplete: ${missing.join(', ')}`, path: 'seller' });
+  }
+  if (isBlank(seller.vatId) && isBlank(seller.taxNumber)) {
+    issues.push({ code: 'SELLER_TAX_ID_MISSING', message: 'The seller needs a VAT ID or a tax number', path: 'seller.vatId' });
+  }
   return issues;
 }
 

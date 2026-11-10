@@ -54,7 +54,9 @@ export const UPDATE_SETTINGS = gql`
     updateEInvoiceChannelSettings(input: $input) {
       enabled
       autoIssue
-      seller
+      seller {
+        name
+      }
     }
   }
 `;
