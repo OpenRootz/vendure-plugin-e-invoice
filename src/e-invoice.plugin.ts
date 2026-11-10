@@ -2,7 +2,9 @@ import { OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { Injector, PluginCommonModule, Type, VendurePlugin } from '@vendure/core';
 
-import { adminApiExtensions } from './api/schema';
+import { EInvoiceDownloadController } from './api/download.controller';
+import { adminApiExtensions, shopApiExtensions } from './api/schema';
+import { EInvoiceShopEntityResolver, EInvoiceShopOrderResolver } from './api/shop.resolver';
 import { EInvoiceAdminResolver, EInvoiceEntityResolver, EInvoiceFileResolver, EInvoiceOrderResolver } from './api/admin.resolver';
 import { eInvoicePermission, PLUGIN_INIT_OPTIONS } from './constants';
 import { customFields } from './custom-fields';
@@ -18,6 +20,7 @@ import { OrderModelMapper } from './mapping/order-model.mapper';
 import { EInvoicePluginOptions, resolveOptions, ResolvedEInvoicePluginOptions } from './options';
 import { ChannelSettingsService } from './services/channel-settings.service';
 import { CreditNoteService } from './services/credit-note.service';
+import { DownloadLinkService } from './services/download-link.service';
 import { InvoiceNumberService } from './services/invoice-number.service';
 import { InvoiceRenderService } from './services/invoice-render.service';
 import { InvoiceService } from './services/invoice.service';
@@ -33,10 +36,16 @@ import { InvoiceService } from './services/invoice.service';
     InvoiceRenderService,
     CreditNoteService,
     InvoiceService,
+    DownloadLinkService,
   ],
+  controllers: [EInvoiceDownloadController],
   adminApiExtensions: {
     schema: adminApiExtensions,
     resolvers: [EInvoiceAdminResolver, EInvoiceEntityResolver, EInvoiceFileResolver, EInvoiceOrderResolver],
+  },
+  shopApiExtensions: {
+    schema: shopApiExtensions,
+    resolvers: [EInvoiceShopOrderResolver, EInvoiceShopEntityResolver, EInvoiceFileResolver],
   },
   configuration: (config) => {
     const options = EInvoicePlugin.options;

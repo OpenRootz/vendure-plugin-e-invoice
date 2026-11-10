@@ -51,6 +51,23 @@ export interface EInvoiceMappingHooks {
   transformModel?: (ctx: RequestContext, model: EInvoiceModel, order: Order) => EInvoiceModel | Promise<EInvoiceModel>;
 }
 
+/** A duration in seconds, or a string like `'15m'`, `'1h'`, `'7d'`. */
+export type Duration = number | `${number}${'s' | 'm' | 'h' | 'd'}`;
+
+export interface DownloadLinkOptions {
+  /** Links for guests, e.g. in the order confirmation email. Default: `'7d'`. */
+  guestTtl?: Duration;
+  /** Links in the Shop API for the customer who owns the order. Default: `'1h'`. */
+  ownerTtl?: Duration;
+  /** Links in the Admin API. Default: `'15m'`. */
+  adminTtl?: Duration;
+  /**
+   * Public base URL of the Vendure server, e.g. `https://shop.example.com`. Default: taken from the API request
+   * (set it when Vendure runs behind a proxy, or when links are created outside of a request, e.g. in jobs).
+   */
+  baseUrl?: string;
+}
+
 /**
  * Options for {@link EInvoicePlugin.init}.
  */
@@ -74,6 +91,8 @@ export interface EInvoicePluginOptions {
   roundingFallbackThreshold?: number;
   /** IANA time zone used for issue and due dates. Default: the time zone of the server process. */
   timeZone?: string;
+  /** Signed download links. All links are signed with `secret` and expire. */
+  downloadLinks?: DownloadLinkOptions;
   /** Make the buyer custom fields (VAT ID, buyer reference, Leitweg-ID, PO number) readable and writable in the Shop API. Default: `true`. */
   exposeBuyerFieldsInShop?: boolean;
   numberStrategy?: InvoiceNumberStrategy;
@@ -92,12 +111,15 @@ export interface EInvoicePluginOptions {
   mapping?: EInvoiceMappingHooks;
 }
 
-export type ResolvedEInvoicePluginOptions = Required<EInvoicePluginOptions>;
+export type ResolvedEInvoicePluginOptions = Required<Omit<EInvoicePluginOptions, 'downloadLinks'>> & {
+  downloadLinks: { guestTtl: number; ownerTtl: number; adminTtl: number; baseUrl?: string };
+};
 
 export function resolveOptions(options: EInvoicePluginOptions): ResolvedEInvoicePluginOptions {
   if (!options?.secret || options.secret.length < 32) {
     throw new Error('EInvoicePlugin: `secret` is required and must be at least 32 characters long');
   }
+  const links = options.downloadLinks ?? {};
   return {
     issueOnStates: ['PaymentSettled'],
     autoCreditNotes: true,
@@ -114,7 +136,25 @@ export function resolveOptions(options: EInvoicePluginOptions): ResolvedEInvoice
     pdf: {},
     mapping: {},
     ...stripUndefined(options),
+    downloadLinks: {
+      guestTtl: parseDuration(links.guestTtl ?? '7d', 'downloadLinks.guestTtl'),
+      ownerTtl: parseDuration(links.ownerTtl ?? '1h', 'downloadLinks.ownerTtl'),
+      adminTtl: parseDuration(links.adminTtl ?? '15m', 'downloadLinks.adminTtl'),
+      baseUrl: links.baseUrl?.replace(/\/+$/, ''),
+    },
   };
+}
+
+const UNIT_SECONDS = { s: 1, m: 60, h: 3600, d: 86400 } as const;
+
+/** Duration in seconds. */
+export function parseDuration(value: Duration, name = 'duration'): number {
+  const match = typeof value === 'number' ? null : /^(\d+(?:\.\d+)?)([smhd])$/.exec(value);
+  const seconds = typeof value === 'number' ? value : match ? Number(match[1]) * UNIT_SECONDS[match[2] as 's'] : NaN;
+  if (!Number.isFinite(seconds) || seconds <= 0) {
+    throw new Error(`EInvoicePlugin: \`${name}\` must be a positive number of seconds or a string like '1h', got ${value}`);
+  }
+  return Math.round(seconds);
 }
 
 function stripUndefined<T extends object>(o: T): T {

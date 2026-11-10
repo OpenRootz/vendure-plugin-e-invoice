@@ -1,13 +1,15 @@
 import { Args, Mutation, Parent, Query, ResolveField, Resolver } from '@nestjs/graphql';
-import { Allow, Ctx, ID, ListQueryOptions, Order, OrderService, RequestContext } from '@vendure/core';
+import { Allow, Ctx, ID, ListQueryOptions, Order, OrderService, RequestContext, UserInputError } from '@vendure/core';
 
 import { eInvoicePermission } from '../constants';
 import { EInvoiceFormat } from '../core';
 import { EInvoice, EInvoiceFile } from '../entities';
 import { ChannelSettingsService, UpdateChannelSettingsInput } from '../services/channel-settings.service';
+import { DownloadLinkService } from '../services/download-link.service';
 import { InvoiceService, ManualCreditNoteInput } from '../services/invoice.service';
 
-const formatEnum = (f: EInvoiceFormat) => f.toUpperCase().replace(/-/g, '_');
+export const formatEnum = (f: EInvoiceFormat) => f.toUpperCase().replace(/-/g, '_');
+export const formatFromEnum = (f: string) => f.toLowerCase().replace(/_/g, '-') as EInvoiceFormat;
 
 type Filter = Record<string, unknown> & { _and?: Filter[]; _or?: Filter[] };
 
@@ -31,6 +33,7 @@ export class EInvoiceAdminResolver {
   constructor(
     private invoices: InvoiceService,
     private settings: ChannelSettingsService,
+    private links: DownloadLinkService,
   ) {}
 
   @Query()
@@ -90,6 +93,29 @@ export class EInvoiceAdminResolver {
   async cancelAndReissueEInvoice(@Ctx() ctx: RequestContext, @Args() args: { invoiceId: ID }) {
     const invoice = await this.invoices.cancelAndReissue(ctx, args.invoiceId);
     return this.invoices.findOne(ctx, invoice.id);
+  }
+
+  @Mutation()
+  @Allow(eInvoicePermission.Read)
+  async createEInvoiceGuestLink(@Ctx() ctx: RequestContext, @Args() args: { invoiceId: ID; format?: string }) {
+    const invoice = await this.invoices.findOne(ctx, args.invoiceId);
+    if (invoice?.status !== 'ISSUED') throw new UserInputError(`E-invoice ${args.invoiceId} is not issued`);
+    const format = args.format ? formatFromEnum(args.format) : undefined;
+    if (format && !invoice.files.some((f) => f.format === format)) {
+      throw new UserInputError(`E-invoice ${invoice.number} has no ${args.format} file`);
+    }
+    return this.links.fileLink(ctx, invoice, format, 'guest');
+  }
+
+  @Mutation()
+  @Allow(eInvoicePermission.Read)
+  async createEInvoiceZipLink(@Ctx() ctx: RequestContext, @Args() args: { ids: ID[] }) {
+    if (!args.ids.length) throw new UserInputError('No e-invoices selected');
+    for (const id of args.ids) {
+      const invoice = await this.invoices.findOne(ctx, id);
+      if (invoice?.status !== 'ISSUED') throw new UserInputError(`E-invoice ${invoice?.number ?? id} is not issued`);
+    }
+    return this.links.zipLink(ctx, args.ids, 'admin');
   }
 
   @Mutation()
@@ -159,11 +185,19 @@ export class EInvoiceEntityResolver {
   }
 }
 
+/** Shared by the Admin and the Shop API. */
 @Resolver('EInvoiceFile')
 export class EInvoiceFileResolver {
+  constructor(private links: DownloadLinkService) {}
+
   @ResolveField()
   format(@Parent() file: EInvoiceFile) {
     return formatEnum(file.format);
+  }
+
+  @ResolveField()
+  downloadUrl(@Ctx() ctx: RequestContext, @Parent() file: EInvoiceFile) {
+    return this.links.fileLink(ctx, { id: file.invoiceId }, file.format, ctx.apiType === 'shop' ? 'owner' : 'admin');
   }
 }
 

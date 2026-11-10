@@ -9,3 +9,4 @@ export { buildModel, BuildModelInput } from './mapping/build-model';
 export { OrderModelMapper } from './mapping/order-model.mapper';
 export { ChannelSettingsService } from './services/channel-settings.service';
 export { InvoiceService } from './services/invoice.service';
+export { DownloadLinkService, LinkAudience } from './services/download-link.service';

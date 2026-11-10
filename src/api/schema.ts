@@ -1,10 +1,53 @@
 import gql from 'graphql-tag';
 
-export const adminApiExtensions = gql`
+const sharedTypes = `
   enum EInvoiceType {
     INVOICE
     CREDIT_NOTE
   }
+
+  enum EInvoiceFormat {
+    ZUGFERD
+    XRECHNUNG_CII
+    XRECHNUNG_UBL
+  }
+
+  type EInvoiceFile {
+    id: ID!
+    format: EInvoiceFormat!
+    fileName: String!
+    mimeType: String!
+    size: Int!
+    "Hex SHA-256 of the content"
+    sha256: String!
+    "Signed, time-limited download link"
+    downloadUrl: String!
+  }
+`;
+
+export const shopApiExtensions = gql`
+  ${sharedTypes}
+
+  "An issued invoice or credit note of the customer's order"
+  type EInvoice implements Node {
+    id: ID!
+    createdAt: DateTime!
+    type: EInvoiceType!
+    number: String!
+    issueDate: String!
+    currencyCode: CurrencyCode!
+    totalWithTax: Money!
+    files: [EInvoiceFile!]!
+  }
+
+  extend type Order {
+    "Issued invoices and credit notes"
+    eInvoices: [EInvoice!]!
+  }
+`;
+
+export const adminApiExtensions = gql`
+  ${sharedTypes}
 
   enum EInvoiceStatus {
     BLOCKED
@@ -14,25 +57,10 @@ export const adminApiExtensions = gql`
     VOID
   }
 
-  enum EInvoiceFormat {
-    ZUGFERD
-    XRECHNUNG_CII
-    XRECHNUNG_UBL
-  }
-
   type EInvoiceIssue {
     code: String!
     message: String!
     path: String
-  }
-
-  type EInvoiceFile {
-    id: ID!
-    format: EInvoiceFormat!
-    fileName: String!
-    mimeType: String!
-    size: Int!
-    sha256: String!
   }
 
   type EInvoice implements Node {
@@ -281,6 +309,10 @@ export const adminApiExtensions = gql`
     createEInvoiceCreditNote(input: CreateEInvoiceCreditNoteInput!): EInvoice!
     "Credit the invoice in full and issue a new one for the current order (e.g. after correcting the buyer data). Returns the new invoice."
     cancelAndReissueEInvoice(invoiceId: ID!): EInvoice!
+    "Download link for customers without an account, e.g. to send by email. Valid for downloadLinks.guestTtl (default 7 days)."
+    createEInvoiceGuestLink(invoiceId: ID!, format: EInvoiceFormat): String!
+    "Download link for a ZIP archive with all files of the given issued documents"
+    createEInvoiceZipLink(ids: [ID!]!): String!
     "FAILED document that can never be rendered: the number stays used and the reason documents the gap."
     voidEInvoice(id: ID!, reason: String!): EInvoice!
     updateEInvoiceChannelSettings(input: UpdateEInvoiceChannelSettingsInput!): EInvoiceChannelSettings!

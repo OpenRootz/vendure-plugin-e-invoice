@@ -101,6 +101,7 @@ export interface InvoiceResult {
   reason: string;
   number: string | null;
   issueDate: string | null;
+  currencyCode: string;
   totalNet: number;
   totalTax: number;
   totalWithTax: number;
@@ -297,7 +298,7 @@ export async function waitForInvoices(
   }
 }
 
-/** Reads the stored files of an invoice directly from the database (download API follows in a later milestone). */
+/** Reads the stored files of an invoice directly from the database. */
 export async function readFiles(server: TestServer, invoiceNumber: string): Promise<Record<string, Buffer>> {
   const connection = server.app.get(TransactionalConnection).rawConnection;
   const invoice = await connection.getRepository(EInvoice).findOneOrFail({ where: { number: invoiceNumber }, relations: ['files'] });
