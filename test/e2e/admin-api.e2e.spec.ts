@@ -1,13 +1,14 @@
-import { RequestContext } from '@vendure/core';
-import { createTestEnvironment } from '@vendure/testing';
+import { RequestContext, RequestContextService } from '@vendure/core';
+import { createTestEnvironment, E2E_DEFAULT_CHANNEL_TOKEN } from '@vendure/testing';
 import gql from 'graphql-tag';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { DefaultTemplatePdfStrategy, PdfTemplateInput } from '../../src';
+import { DefaultTemplatePdfStrategy, EInvoiceModel, PdfTemplateInput } from '../../src';
+import { InvoiceRenderService } from '../../src/services/invoice-render.service';
 import { initialData } from '../fixtures/initial-data';
-import { createConfig, fixtures } from '../helpers';
+import { createConfig, fixtures, usePostgres } from '../helpers';
 
-import { CREATE_INVOICE, E_INVOICE_FIELDS, InvoiceResult, placeOrder, SELLER_SETTINGS, waitForInvoices } from './helpers';
+import { CREATE_INVOICE, E_INVOICE_FIELDS, InvoiceResult, placeOrder, RETRY_INVOICE, SELLER_SETTINGS, waitForInvoices } from './helpers';
 
 /** Fails rendering while `failing` is set, to produce FAILED invoices. */
 class FlakyPdfStrategy extends DefaultTemplatePdfStrategy {
@@ -105,6 +106,27 @@ const PREVIEW = gql`
   }
 `;
 
+const LAYOUT_PREVIEW = gql`
+  query ($input: EInvoiceLayoutPreviewInput!) {
+    eInvoiceLayoutPreview(input: $input) {
+      pdf
+    }
+  }
+`;
+
+const CREATE_CHANNEL = gql`
+  mutation ($input: CreateChannelInput!) {
+    createChannel(input: $input) {
+      ... on Channel {
+        id
+      }
+      ... on ErrorResult {
+        message
+      }
+    }
+  }
+`;
+
 const VOID = gql`
   mutation ($id: ID!, $reason: String!) {
     voidEInvoice(id: $id, reason: $reason) {
@@ -122,7 +144,12 @@ const errorOf = (p: Promise<unknown>) => p.then(() => 'no error').catch((e: Erro
 
 describe('Admin API', () => {
   const pdfStrategy = new FlakyPdfStrategy();
-  const { server, adminClient, shopClient } = createTestEnvironment(createConfig({ pdfStrategy }));
+  /** While set, the buyer name is removed, so new invoices are BLOCKED */
+  let blockBuyer = false;
+  const mapping = {
+    transformModel: (_ctx: RequestContext, model: EInvoiceModel) => (blockBuyer ? { ...model, buyer: { ...model.buyer, name: '' } } : model),
+  };
+  const { server, adminClient, shopClient } = createTestEnvironment(createConfig({ pdfStrategy, mapping }));
   const orders: { id: string; code: string }[] = [];
 
   beforeAll(async () => {
@@ -189,6 +216,29 @@ describe('Admin API', () => {
     expect(eInvoicePreview.issues.map((i: { code: string }) => i.code)).toContain('TAX_CATEGORY_MISSING');
   });
 
+  it('does not preview or invoice orders of another channel', async () => {
+    const { createChannel } = await adminClient.query(CREATE_CHANNEL, {
+      input: {
+        code: 'other-channel',
+        token: 'other-channel-token',
+        defaultLanguageCode: 'en',
+        defaultCurrencyCode: 'EUR',
+        pricesIncludeTax: true,
+        defaultShippingZoneId: '1',
+        defaultTaxZoneId: '1',
+      },
+    });
+    expect(createChannel).toMatchObject({ id: expect.any(String) });
+    adminClient.setChannelToken('other-channel-token');
+    try {
+      expect(await errorOf(adminClient.query(PREVIEW, { orderId: orders[0].id }))).toContain('not found');
+      expect(await errorOf(adminClient.query(LAYOUT_PREVIEW, { input: { orderId: orders[0].id } }))).toContain('not found');
+      expect(await errorOf(adminClient.query(CREATE_INVOICE, { orderId: orders[0].id }))).toContain('not found');
+    } finally {
+      adminClient.setChannelToken(E2E_DEFAULT_CHANNEL_TOKEN);
+    }
+  });
+
   it('voids a failed invoice with a reason, keeping its number', async () => {
     pdfStrategy.failing = true;
     const order = await placeOrder(shopClient, { items: [{ sku: 'BOOK-1', quantity: 1 }] });
@@ -226,5 +276,34 @@ describe('Admin API', () => {
 
     const sorted = (await adminClient.query(LIST, { options: { sort: { number: 'ASC' }, take: 1 } })).eInvoices;
     expect(sorted).toMatchObject({ totalItems: 2, items: [{ number: no(1) }] });
+  });
+
+  // sql.js cannot run two transactions at the same time
+  it.runIf(usePostgres)('renders a document only once when two renders run at the same time', async () => {
+    pdfStrategy.failing = true;
+    const order = await placeOrder(shopClient, { items: [{ sku: 'BOOK-1', quantity: 1 }] });
+    await adminClient.query(CREATE_INVOICE, { orderId: order.id });
+    const [failed] = await waitForInvoices(adminClient, order.id, (i) => i[0]?.status === 'FAILED');
+    pdfStrategy.failing = false;
+
+    const ctx = await server.app.get(RequestContextService).create({ apiType: 'admin' });
+    const renderer = server.app.get(InvoiceRenderService);
+    // The test config encodes ids in the API (T_3)
+    const id = failed.id.replace(/^T_/, '');
+    await Promise.all([renderer.render(ctx, id), renderer.render(ctx, id)]);
+    const [invoice] = await waitForInvoices(adminClient, order.id, issued);
+    expect(invoice.files).toHaveLength(1);
+  });
+
+  it.runIf(usePostgres)('issues one invoice when a blocked invoice is retried twice at the same time', async () => {
+    blockBuyer = true;
+    const order = await placeOrder(shopClient, { items: [{ sku: 'BOOK-1', quantity: 1 }] });
+    const { createEInvoice } = await adminClient.query(CREATE_INVOICE, { orderId: order.id });
+    expect(createEInvoice.status).toBe('BLOCKED');
+    blockBuyer = false;
+
+    await Promise.allSettled([adminClient.query(RETRY_INVOICE, { id: createEInvoice.id }), adminClient.query(RETRY_INVOICE, { id: createEInvoice.id })]);
+    const invoices = await waitForInvoices(adminClient, order.id, issued);
+    expect(invoices.map((i) => i.type)).toEqual(['INVOICE']);
   });
 });

@@ -358,7 +358,13 @@ export function parseLayout(input: unknown): { layout?: PdfLayoutV2; issues: Lay
   }
   if (issues.some((i) => i.level === 'error')) return { issues };
 
-  const layout = input as unknown as PdfLayoutV2;
+  // Null props (cleared fields) mean "not set"; drop them so no consumer sees e.g. `assetId: null`
+  const layout = {
+    ...input,
+    blocks: (input.blocks as LayoutBlock[]).map((b) =>
+      b.props ? { ...b, props: Object.fromEntries(Object.entries(b.props).filter(([, v]) => v !== null && v !== undefined)) } : b,
+    ),
+  } as unknown as PdfLayoutV2;
   issues.push(...checkAnchors(layout));
   return issues.some((i) => i.level === 'error') ? { issues } : { layout, issues };
 }

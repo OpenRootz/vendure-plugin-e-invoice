@@ -15,6 +15,7 @@ import {
 import { eInvoicePermission, loggerCtx, PLUGIN_INIT_OPTIONS } from './constants';
 import { customFields } from './custom-fields';
 import {
+  adaptJsonColumns,
   defineBlobColumn,
   EInvoice,
   EInvoiceBlob,
@@ -59,6 +60,7 @@ import { LayoutPreviewService } from './services/layout-preview.service';
   configuration: (config) => {
     const options = EInvoicePlugin.options;
     defineBlobColumn(config.dbConnectionOptions.type);
+    adaptJsonColumns(config.dbConnectionOptions.type);
     config.authOptions.customPermissions.push(eInvoicePermission);
     const fields = customFields({ exposeBuyerFieldsInShop: options.exposeBuyerFieldsInShop });
     config.customFields.Customer.push(...fields.Customer);

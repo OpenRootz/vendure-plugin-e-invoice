@@ -170,6 +170,9 @@ describe('Downloads and Shop API', () => {
     expect(ids).toHaveLength(2);
     const tampered = withParam(createEInvoiceZipLink, 'ids', ids[0]);
     expect((await get(tampered)).status).toBe(403);
+
+    const tooMany = Array.from({ length: 501 }, () => invoice.id);
+    expect(await adminClient.query(ZIP_LINK, { ids: tooMany }).catch((e: Error) => e.message)).toContain('At most 500');
   });
 
   it('does not create links for documents that are not issued', async () => {

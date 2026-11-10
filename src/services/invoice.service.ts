@@ -206,6 +206,9 @@ export class InvoiceService implements OnApplicationBootstrap {
     }
     const invoice = await this.connection.withTransaction(ctx, async (txCtx) => {
       await lockOrder(this.connection, txCtx, existing.orderId);
+      // A concurrent retry may have issued it meanwhile; issuing again would create a second invoice
+      const current = await this.findOne(txCtx, id);
+      if (current?.status !== 'BLOCKED') throw new UserInputError(`E-invoice ${id} is ${current?.status} and cannot be retried`);
       return this.issue(txCtx, existing.orderId, existing.reason);
     });
     await this.afterIssue(ctx, [invoice]);
@@ -405,9 +408,11 @@ export class InvoiceService implements OnApplicationBootstrap {
 
   /** Loads an invoice of the current channel and locks its order. */
   private async lockedInvoice(ctx: RequestContext, invoiceId: ID): Promise<EInvoice> {
-    const invoice = await this.findOne(ctx, invoiceId);
-    if (!invoice) throw new UserInputError(`E-invoice ${invoiceId} not found`);
-    await lockOrder(this.connection, ctx, invoice.orderId);
+    const found = await this.findOne(ctx, invoiceId);
+    if (!found) throw new UserInputError(`E-invoice ${invoiceId} not found`);
+    await lockOrder(this.connection, ctx, found.orderId);
+    // Read again under the lock: the invoice may have been voided meanwhile
+    const invoice = (await this.findOne(ctx, invoiceId)) ?? found;
     if (invoice.type !== 'invoice') throw new UserInputError(`${invoice.number ?? invoiceId} is not an invoice`);
     if (!NUMBERED_STATUSES.includes(invoice.status as (typeof NUMBERED_STATUSES)[number])) {
       throw new UserInputError(`Invoice ${invoice.number ?? invoiceId} is ${invoice.status} and cannot be credited`);

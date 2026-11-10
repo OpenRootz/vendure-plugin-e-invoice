@@ -6,7 +6,7 @@ import { EInvoiceFormat, LayoutPreset, layoutPreset, SampleKind, v1Fields } from
 import { LayoutSettings } from '../entities';
 import { EInvoice, EInvoiceFile } from '../entities';
 import { ChannelSettingsService, UpdateChannelSettingsInput } from '../services/channel-settings.service';
-import { DownloadLinkService } from '../services/download-link.service';
+import { DownloadLinkService, MAX_ZIP_INVOICES } from '../services/download-link.service';
 import { InvoiceService, ManualCreditNoteInput } from '../services/invoice.service';
 import { LayoutInput, LayoutPreviewInput, LayoutPreviewService } from '../services/layout-preview.service';
 
@@ -134,6 +134,7 @@ export class EInvoiceAdminResolver {
   @Allow(eInvoicePermission.Read)
   async createEInvoiceZipLink(@Ctx() ctx: RequestContext, @Args() args: { ids: ID[] }) {
     if (!args.ids.length) throw new UserInputError('No e-invoices selected');
+    if (args.ids.length > MAX_ZIP_INVOICES) throw new UserInputError(`At most ${MAX_ZIP_INVOICES} e-invoices can be downloaded at once`);
     for (const id of args.ids) {
       const invoice = await this.invoices.findOne(ctx, id);
       if (invoice?.status !== 'ISSUED') throw new UserInputError(`E-invoice ${invoice?.number ?? id} is not issued`);

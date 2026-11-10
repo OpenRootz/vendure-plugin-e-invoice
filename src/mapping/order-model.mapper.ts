@@ -70,9 +70,10 @@ export class OrderModelMapper {
     private taxRateService: TaxRateService,
   ) {}
 
+  /** Loads an order of the current channel; orders of other channels are `undefined`. */
   async loadOrder(ctx: RequestContext, orderId: ID): Promise<Order | undefined> {
     const order = await this.connection.getRepository(ctx, Order).findOne({
-      where: { id: orderId },
+      where: { id: orderId, channels: { id: ctx.channelId } },
       relations: [...ORDER_RELATIONS],
     });
     return order ?? undefined;

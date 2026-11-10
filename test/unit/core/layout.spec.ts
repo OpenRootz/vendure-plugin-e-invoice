@@ -63,6 +63,14 @@ describe('layout model', () => {
     expect(layout).toEqual(defaultLayout());
   });
 
+  it('drops props that are null (cleared GraphQL fields)', () => {
+    const input = JSON.parse(JSON.stringify(defaultLayout()));
+    input.blocks.push({ key: 'img', type: 'image', visible: true, pages: 'first', frame: { x: 0, y: 0, w: 100, h: 100 }, overflow: 'fixed', props: { assetId: null } });
+    const { layout, issues } = parseLayout(input);
+    expect(issues).toEqual([]);
+    expect(layout!.blocks.find((b) => b.key === 'img')!.props).toEqual({});
+  });
+
   it('rejects structural errors', () => {
     const base = defaultLayout();
     const errors = (layout: unknown) => codes(parseLayout(layout).issues);

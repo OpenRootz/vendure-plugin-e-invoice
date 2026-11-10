@@ -9,10 +9,8 @@ import { loggerCtx, PLUGIN_INIT_OPTIONS } from '../constants';
 import { EInvoiceFormat } from '../core';
 import { EInvoice, EInvoiceFile } from '../entities';
 import { ResolvedEInvoicePluginOptions } from '../options';
-import { DOWNLOAD_ROUTE, DownloadLinkService, SignedPayload } from '../services/download-link.service';
+import { DOWNLOAD_ROUTE, DownloadLinkService, MAX_ZIP_INVOICES, SignedPayload } from '../services/download-link.service';
 
-/** Upper bound for one ZIP download. */
-const MAX_ZIP_INVOICES = 500;
 const FORMATS: EInvoiceFormat[] = ['zugferd', 'xrechnung-cii', 'xrechnung-ubl'];
 
 class HttpError extends Error {
