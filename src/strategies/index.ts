@@ -6,3 +6,5 @@ export * from './seller-data-strategy';
 export * from './storage-strategy';
 export * from './types';
 export * from './validator';
+export * from './local-file-storage-strategy';
+export * from './s3-storage-strategy';
