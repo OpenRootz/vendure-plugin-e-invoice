@@ -1,25 +1,56 @@
-# @openrootz/vendure-plugin-e-invoice
+# Vendure E-Invoice Plugin
+
+[![CI](https://github.com/OpenRootz/vendure-plugin-e-invoice/actions/workflows/ci.yml/badge.svg)](https://github.com/OpenRootz/vendure-plugin-e-invoice/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@openrootz/vendure-plugin-e-invoice)](https://www.npmjs.com/package/@openrootz/vendure-plugin-e-invoice)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Vendure](https://img.shields.io/badge/vendure-%5E3.8-17c1ff)](https://vendure.io)
+[![EN 16931](https://img.shields.io/badge/EN%2016931-ZUGFeRD%20%7C%20Factur--X%20%7C%20XRechnung-2ea44f)](#validated-output)
 
 EN 16931 e-invoicing for [Vendure](https://vendure.io) v3. The plugin issues **ZUGFeRD / Factur-X** invoices
 (PDF/A-3b with the CII XML embedded) and **XRechnung** (CII or UBL) for your orders, with gap-free numbering,
-credit notes for refunds and cancellations, signed downloads for admins and customers, and a dashboard extension.
+credit notes for refunds and cancellations, signed downloads for admins and customers, and a dashboard extension
+with a visual invoice layout editor.
 
-In Germany, businesses must be able to receive e-invoices since 2025; issuing them becomes mandatory for B2B from
-2027 (turnover above €800k) and for everyone from 2028.
+![The invoice layout editor in the Vendure dashboard](docs/images/layout-editor.png)
 
-- **One invoice model, several formats**: ZUGFeRD (profile EN 16931) for every order; XRechnung CII when the buyer
-  has a Leitweg-ID (German public authorities); UBL on request. Every output is checked with the official validators
-  (KoSIT, Mustang, veraPDF) in CI.
+## Why
+
+In Germany, businesses must be able to receive e-invoices since 2025; **issuing them becomes mandatory for B2B
+from 2027** (turnover above €800k) and for everyone from 2028. Other EU countries follow with their own
+deadlines. A PDF generated from an HTML template is no longer enough: the invoice needs a structured, validated
+EN 16931 data set, and the numbering, retention and correction rules still apply.
+
+This plugin does that inside Vendure, without a browser, a Java runtime or an external SaaS.
+
+## Features
+
+- **One invoice model, several formats**: ZUGFeRD (profile EN 16931) for every order; XRechnung CII when the
+  buyer has a Leitweg-ID (German public authorities); UBL on request.
+- **Validated output**: every scenario is checked with the official validators (KoSIT, Mustang, veraPDF) in CI;
+  optional runtime validation against a KoSIT sidecar.
 - **Gap-free numbers**: the number format is yours (`RE-2026-00001` by default), the counter is row-locked inside
   the issuing transaction. A failed check never uses a number; a failed render keeps it and documents it.
 - **Immutable documents**: the invoice data is stored as a snapshot; files are only ever rendered from it.
   Corrections happen through credit notes (type 381).
 - **Credit notes**: automatic for settled refunds (amount-only refunds are split across the VAT rates),
   cancellations and order modifications; manual credit notes per line, for shipping or a free amount.
+- **Checks before issuing**: missing seller data, a 0 % rate without VAT category, reverse charge without buyer
+  VAT ID or totals that do not match the order are explained in plain words, with a link to where they are fixed.
+- **Visual layout editor**: drag and resize blocks on the real PDF, presets for DIN 5008 Form A/B, layout checks
+  for the content §14 UStG requires. Or bring your own [pdfmake](https://pdfmake.github.io/docs/) template.
+- **Signed downloads**: time-limited links for admins, customers and guests, ZIP export, SHA-256 checked files.
+- **Storage**: database (default), local directory or S3.
 - **No browser, no Java at runtime**: PDFs are rendered with pdfmake (pure JavaScript).
+- **Extensible**: strategies for numbering, seller and buyer data, formats, PDF, storage and validation, plus
+  mapping hooks for the invoice model.
+
+| ZUGFeRD PDF (sample)                                        | Settings and setup status                                        |
+| ----------------------------------------------------------- | ---------------------------------------------------------------- |
+| ![A German ZUGFeRD sample invoice](docs/images/invoice.png) | ![E-invoice settings in the dashboard](docs/images/settings.png) |
 
 ## Contents
 
+- [Requirements](#requirements)
 - [Installation](#installation)
 - [Setup checklist](#setup-checklist)
 - [How it works](#how-it-works)
@@ -29,17 +60,29 @@ In Germany, businesses must be able to receive e-invoices since 2025; issuing th
 - [Dashboard](#dashboard)
 - [Runtime validation](#runtime-validation)
 - [Storage](#storage)
+- [Validated output](#validated-output)
 - [Legal notes](#legal-notes)
 - [Limitations](#limitations)
+- [Roadmap](#roadmap)
 - [Development](#development)
+- [Contributing](#contributing)
+
+## Requirements
+
+| Component | Version                                                                                             |
+| --------- | --------------------------------------------------------------------------------------------------- |
+| Vendure   | `^3.8` (developed against 3.8.1)                                                                    |
+| Node.js   | ≥ 22 (CI: 22 and 24)                                                                                |
+| Database  | PostgreSQL and SQLite/sql.js are tested in CI; MySQL/MariaDB get `LONGBLOB`/`LONGTEXT` column types |
+| Dashboard | the React dashboard (`@vendure/dashboard`) for the UI extension; the APIs work without it           |
+| S3        | `@aws-sdk/client-s3` v3, only for `S3InvoiceStorageStrategy`                                        |
 
 ## Installation
 
 ```bash
 pnpm add @openrootz/vendure-plugin-e-invoice
+# or: npm install @openrootz/vendure-plugin-e-invoice
 ```
-
-Requires Vendure `^3.8` and Node ≥ 22.
 
 ```ts
 // vendure-config.ts
@@ -63,7 +106,8 @@ The plugin adds entities and custom fields, so generate and run a migration
 npx vendure migrate
 ```
 
-Tables: `e_invoice`, `e_invoice_file`, `e_invoice_sequence`, `e_invoice_channel_settings`, `e_invoice_blob`.
+Tables: `e_invoice`, `e_invoice_file`, `e_invoice_sequence`, `e_invoice_channel_settings`, `e_invoice_blob`. The
+`e_invoice_` prefix lets the plugin run next to other invoice plugins.
 
 ## Setup checklist
 
@@ -80,7 +124,7 @@ E-invoicing is **off** per channel until you enable it.
    with the method name.
 4. **Enable** e-invoicing for the channel. `eInvoiceSetupStatus` (shown on the settings page) lists anything that
    is still missing.
-5. Optionally upload a logo and set an accent color and texts for the PDF.
+5. Optionally design the PDF in the layout editor (Settings → Invoice layout): logo, colors, texts, block positions.
 
 ## How it works
 
@@ -105,7 +149,8 @@ Order reaches PaymentSettled ─▶ reconcile ─▶ checks ──fail──▶ 
   - order cancelled → the remaining amount is credited in full;
   - order modified after invoicing → full credit note plus a new invoice for the current order;
   - manual: per line and quantity, shipping, a free amount, or a full reversal.
-    The credited quantities and amounts can never exceed the invoice.
+
+  The credited quantities and amounts can never exceed the invoice.
 
 ### Buyer data
 
@@ -299,6 +344,7 @@ happens. It is also required behind a proxy and when creating links outside a re
 The download route is public (the signature is the authorization). It answers with `Cache-Control: private,
 no-store`, `Content-Disposition: attachment`, `X-Content-Type-Options: nosniff`, a sandboxing
 `Content-Security-Policy` and `Referrer-Policy: no-referrer`.
+
 To put a link into your order confirmation email, listen for `EInvoiceIssuedEvent` and use `DownloadLinkService`:
 
 ```ts
@@ -331,6 +377,9 @@ The plugin ships an extension for the React dashboard (`@vendure/dashboard`), co
 
 No extra configuration is needed: `vendureDashboardPlugin` finds the extension through the plugin metadata.
 
+There is no extension for the legacy Angular Admin UI. Shops that still use it can work with the Admin API
+directly; invoices are issued automatically either way.
+
 ## Runtime validation
 
 Validation belongs in CI (this repository validates every scenario with KoSIT, Mustang and veraPDF). For extra
@@ -359,6 +408,21 @@ validation: { validator: new KositHttpValidator({ url: 'http://kosit:8080/' }), 
 Files are never overwritten or deleted by the plugin. Invoices must not be stored with the `AssetStorageStrategy`,
 because assets are public.
 
+## Validated output
+
+The CI pipeline generates invoices for a set of scenarios (B2B net and B2C gross prices, mixed VAT rates, reverse
+charge, intra-community supply, export, a seller with a tax number only, partial and goodwill credit notes, rounding
+cases, custom layouts) and from real orders in end-to-end tests (Leitweg-ID, refunds, cancellations, order
+modifications), then validates every file with:
+
+| Validator                                                                                    | Checks                                             |
+| -------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| [KoSIT validator](https://github.com/itplr-kosit/validator) with the XRechnung configuration | EN 16931 and XRechnung rules for CII and UBL       |
+| [Mustang](https://www.mustangproject.org/)                                                   | ZUGFeRD / Factur-X: PDF, embedded XML and metadata |
+| [veraPDF](https://verapdf.org/)                                                              | PDF/A-3b                                           |
+
+You can run the same checks locally with `pnpm validate` (Docker required).
+
 ## Legal notes
 
 This plugin helps you create compliant e-invoices; it is not tax or legal advice.
@@ -376,8 +440,21 @@ This plugin helps you create compliant e-invoices; it is not tax or legal advice
 
 - One seller per channel (no split invoices for multi-vendor orders yet).
 - Downloads only: sending invoices by email or via Peppol is not included yet.
+- Outgoing invoices only; incoming e-invoices are not parsed.
 - A goodwill refund that happens before an invoice is cancelled and reissued is not reflected in the new invoice.
-- The PDF template cannot be edited in the dashboard (code and settings only).
+- The dashboard extension targets the React dashboard; there is none for the Angular Admin UI.
+- Vendure versions below 3.8 are not tested.
+
+## Roadmap
+
+Ideas for future versions, roughly in this order; feedback on what matters to you is welcome in the
+[issues](https://github.com/OpenRootz/vendure-plugin-e-invoice/issues):
+
+- Email delivery (invoice attached via the `EmailPlugin`) and new download links for expired guest links
+- Custom block types for the layout editor
+- Accounting export hook
+- Peppol sending
+- Multi-vendor orders: one invoice per seller
 
 ## Development
 
@@ -399,12 +476,21 @@ pnpm validate test/__output__/pdf # validate the ZUGFeRD PDFs of all scenarios (
 pnpm validate test/__output__/e2e # validate the invoices generated from e2e orders
 ```
 
-The sql.js e2e tests cache their seeded database in `test/__data__/`. Delete that folder after changing
-entities, custom fields or test fixtures.
+`TEST_DB=sqljs pnpm dev` starts the dev server without Docker. The sql.js e2e tests cache their seeded database in
+`test/__data__/`. Delete that folder after changing entities, custom fields or test fixtures.
+
+CI runs lint, formatting and `pnpm audit --prod` next to the tests; CodeQL scans the code and the workflows, and
+Dependabot proposes dependency and GitHub Actions updates weekly.
+
+## Contributing
+
+Bug reports, questions and ideas are welcome as [issues](https://github.com/OpenRootz/vendure-plugin-e-invoice/issues).
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) first, and report security issues privately as described in
+[SECURITY.md](SECURITY.md). This project follows a [code of conduct](CODE_OF_CONDUCT.md).
 
 CI runs lint, formatting and `pnpm audit --prod` next to the tests; CodeQL scans the code and the workflows, and
 Dependabot proposes dependency and GitHub Actions updates weekly.
 
 ## License
 
-MIT
+[MIT](LICENSE) © openrootz
