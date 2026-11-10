@@ -154,11 +154,7 @@ export function checkModel(model: EInvoiceModel, formats: EInvoiceFormat[]): Inv
     return issues;
   }
   if (totals.expectedTotalDifference !== 0) {
-    add(
-      'TOTAL_MISMATCH',
-      `The invoice total differs from the order total by ${totals.expectedTotalDifference} minor units`,
-      'totals',
-    );
+    add('TOTAL_MISMATCH', `The invoice total differs from the order total by ${totals.expectedTotalDifference} minor units`, 'totals');
   }
   if (totals.duePayable < 0) {
     add('OVERPAID', 'The prepaid amount is higher than the invoice total', 'payment.prepaidAmount');
@@ -207,9 +203,7 @@ function checkLine(line: InvoiceLine, index: number, add: (code: IssueCode, mess
     add('NEGATIVE_AMOUNT', `Line ${line.id} has a negative price`, path);
   }
   const expected =
-    multiply(line.netUnitPrice, line.quantity) -
-    sum(line.allowances.map((a) => a.amount)) +
-    sum(line.charges.map((c) => c.amount));
+    multiply(line.netUnitPrice, line.quantity) - sum(line.allowances.map((a) => a.amount)) + sum(line.charges.map((c) => c.amount));
   if (expected !== line.netAmount) {
     add(
       'LINE_AMOUNT_MISMATCH',

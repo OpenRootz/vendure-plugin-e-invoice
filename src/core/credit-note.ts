@@ -1,26 +1,6 @@
 import { calculate, vatGroupKey } from './calculate';
-import {
-  AllowanceCharge,
-  CreditReference,
-  Decimal,
-  EInvoiceModel,
-  InvoiceLine,
-  IsoDate,
-  Money,
-  PaymentMeans,
-  VatCategory,
-} from './model';
-import {
-  addDecimal,
-  compareDecimal,
-  multiply,
-  netFromGross,
-  parseDecimal,
-  percentOf,
-  scaleMoney,
-  subtractDecimal,
-  sum,
-} from './money';
+import { AllowanceCharge, CreditReference, Decimal, EInvoiceModel, InvoiceLine, IsoDate, Money, PaymentMeans, VatCategory } from './model';
+import { addDecimal, compareDecimal, multiply, netFromGross, parseDecimal, percentOf, scaleMoney, subtractDecimal, sum } from './money';
 
 /**
  * Credit notes (type 381) are always built from the snapshot of the corrected invoice, never from the order,
@@ -468,7 +448,11 @@ export function creditableSummary(invoice: EInvoiceModel, creditNotes: EInvoiceM
     }),
     chargesGross:
       sum([...state.charges].map((i) => gross(invoice.charges[i].amount, invoice.charges[i].vendureTaxAmount, invoice.charges[i].vat))) -
-      sum([...state.allowances].map((i) => gross(invoice.allowances[i].amount, invoice.allowances[i].vendureTaxAmount, invoice.allowances[i].vat))),
+      sum(
+        [...state.allowances].map((i) =>
+          gross(invoice.allowances[i].amount, invoice.allowances[i].vendureTaxAmount, invoice.allowances[i].vat),
+        ),
+      ),
     remainingTotal: state.remainingTotal,
   };
 }

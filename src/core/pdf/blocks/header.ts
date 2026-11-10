@@ -4,10 +4,13 @@ import { DETAIL_FIELDS, DetailField } from '../layout';
 import { addressLines, BlockRenderer, GREY, PdfImage, PdfNode } from './context';
 
 const imageNode = (image: PdfImage, width: number, height: number, align: string): PdfNode =>
-  'dataUrl' in image ? { image: image.dataUrl, fit: [width, height], alignment: align } : { svg: image.svg, fit: [width, height], alignment: align };
+  'dataUrl' in image
+    ? { image: image.dataUrl, fit: [width, height], alignment: align }
+    : { svg: image.svg, fit: [width, height], alignment: align };
 
 /** The shop logo, scaled to fit the frame. */
-export const logo: BlockRenderer = ({ logo, width, height, block }) => (logo ? imageNode(logo, width, height, block.style?.align ?? 'right') : null);
+export const logo: BlockRenderer = ({ logo, width, height, block }) =>
+  logo ? imageNode(logo, width, height, block.style?.align ?? 'right') : null;
 
 /** An image asset (`props.assetId`), scaled to fit the frame. */
 export const image: BlockRenderer = ({ images, block, width, height }) => {
@@ -59,7 +62,13 @@ export const title: BlockRenderer = ({ model, labels, f, accent }) => {
   const isCredit = model.type === 'credit_note';
   return {
     stack: [
-      { text: `${isCredit ? labels.creditNote : labels.invoice} ${model.number}`, fontSize: 16, bold: true, color: accent, margin: [0, 0, 0, 4] },
+      {
+        text: `${isCredit ? labels.creditNote : labels.invoice} ${model.number}`,
+        fontSize: 16,
+        bold: true,
+        color: accent,
+        margin: [0, 0, 0, 4],
+      },
       ...model.precedingInvoices.map((p) => ({
         text: fill(labels.correctsInvoice, { number: p.number, date: f.date(p.issueDate) }),
         margin: [0, 0, 0, 4],
@@ -73,7 +82,11 @@ export const deliveryAddress: BlockRenderer = ({ model, labels }) =>
     ? {
         stack: [
           { text: labels.deliveryAddress, fontSize: 7, color: GREY },
-          { text: addressLines(model.delivery.name ?? '', model.delivery.address, undefined, model.seller.address.countryCode, labels).join(', ') },
+          {
+            text: addressLines(model.delivery.name ?? '', model.delivery.address, undefined, model.seller.address.countryCode, labels).join(
+              ', ',
+            ),
+          },
         ],
       }
     : null;

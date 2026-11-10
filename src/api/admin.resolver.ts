@@ -1,5 +1,16 @@
 import { Args, Mutation, Parent, Query, ResolveField, Resolver } from '@nestjs/graphql';
-import { Allow, Ctx, ForbiddenError, ID, ListQueryOptions, Order, OrderService, Permission, RequestContext, UserInputError } from '@vendure/core';
+import {
+  Allow,
+  Ctx,
+  ForbiddenError,
+  ID,
+  ListQueryOptions,
+  Order,
+  OrderService,
+  Permission,
+  RequestContext,
+  UserInputError,
+} from '@vendure/core';
 
 import { eInvoicePermission } from '../constants';
 import { EInvoiceFormat, LayoutPreset, layoutPreset, SampleKind, v1Fields } from '../core';
@@ -28,9 +39,7 @@ function translateTypeFilter(filter: Filter | undefined): Filter | undefined {
   const out: Filter = { ...filter };
   if (out.type && typeof out.type === 'object') {
     const lower = (v: unknown) => (typeof v === 'string' ? v.toLowerCase() : v);
-    out.type = Object.fromEntries(
-      Object.entries(out.type).map(([op, v]) => [op, Array.isArray(v) ? v.map(lower) : lower(v)]),
-    );
+    out.type = Object.fromEntries(Object.entries(out.type).map(([op, v]) => [op, Array.isArray(v) ? v.map(lower) : lower(v)]));
   }
   if (out._and) out._and = out._and.map((f) => translateTypeFilter(f) as Filter);
   if (out._or) out._or = out._or.map((f) => translateTypeFilter(f) as Filter);
@@ -68,16 +77,27 @@ export class EInvoiceAdminResolver {
 
   @Query()
   @Allow(eInvoicePermission.Read)
-  eInvoiceLayoutPreview(@Ctx() ctx: RequestContext, @Args() args: { input: Omit<LayoutPreviewInput, 'sample'> & { sample?: string | null } }) {
+  eInvoiceLayoutPreview(
+    @Ctx() ctx: RequestContext,
+    @Args() args: { input: Omit<LayoutPreviewInput, 'sample'> & { sample?: string | null } },
+  ) {
     const { sample, ...input } = args.input;
     if (input.orderId) assertCanReadOrders(ctx);
-    return this.layoutPreview.preview(ctx, { ...input, sample: sample ? (sample.toLowerCase().replace(/_/g, '-') as SampleKind) : undefined });
+    return this.layoutPreview.preview(ctx, {
+      ...input,
+      sample: sample ? (sample.toLowerCase().replace(/_/g, '-') as SampleKind) : undefined,
+    });
   }
 
   @Query()
   @Allow(eInvoicePermission.Read)
   eInvoiceDefaultLayout(@Args() args: { preset?: string | null }) {
-    const presets: Record<string, LayoutPreset> = { DEFAULT: 'default', DIN_5008_A: 'din5008A', DIN_5008_B: 'din5008B', MINIMAL: 'minimal' };
+    const presets: Record<string, LayoutPreset> = {
+      DEFAULT: 'default',
+      DIN_5008_A: 'din5008A',
+      DIN_5008_B: 'din5008B',
+      MINIMAL: 'minimal',
+    };
     return layoutPreset(presets[args.preset ?? 'DEFAULT'] ?? 'default');
   }
 
@@ -160,7 +180,10 @@ export class EInvoiceAdminResolver {
 
   @Mutation()
   @Allow(eInvoicePermission.Update)
-  async updateEInvoiceChannelSettings(@Ctx() ctx: RequestContext, @Args() args: { input: UpdateChannelSettingsInput & { layout?: LayoutInput | null } }) {
+  async updateEInvoiceChannelSettings(
+    @Ctx() ctx: RequestContext,
+    @Args() args: { input: UpdateChannelSettingsInput & { layout?: LayoutInput | null } },
+  ) {
     const { layout, ...input } = args.input;
     const prepared = layout ? await this.layoutPreview.prepareLayout(ctx, layout, input.seller, input.payment) : undefined;
     return this.settings.update(ctx, { ...input, ...(prepared ? { layout: prepared } : {}) });

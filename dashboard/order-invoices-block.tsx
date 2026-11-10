@@ -159,7 +159,11 @@ export function OrderInvoicesBlock({ orderId }: { orderId: string }) {
                         </>
                       )}
                       {canUpdate && (inv.status === 'BLOCKED' || inv.status === 'FAILED') && (
-                        <Button size="xs" variant="outline" onClick={() => run('Retry started', () => api.mutate(retryDocument, { id: inv.id }))}>
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          onClick={() => run('Retry started', () => api.mutate(retryDocument, { id: inv.id }))}
+                        >
                           Retry
                         </Button>
                       )}
@@ -214,8 +218,8 @@ export function OrderInvoicesBlock({ orderId }: { orderId: string }) {
               <DialogTitle>Cancel and reissue {confirmReissue.number}?</DialogTitle>
             </DialogHeader>
             <p className="text-sm">
-              The invoice is credited in full and a new invoice is issued for the current order, e.g. after correcting
-              the buyer data. Both documents get new numbers.
+              The invoice is credited in full and a new invoice is issued for the current order, e.g. after correcting the buyer data. Both
+              documents get new numbers.
             </p>
             <DialogFooter>
               <Button variant="outline" onClick={() => setConfirmReissue(undefined)}>
@@ -257,8 +261,8 @@ function VoidDialog({ invoice, onClose, onDone }: { invoice: EInvoiceRow; onClos
           <DialogTitle>Void {invoice.number}?</DialogTitle>
         </DialogHeader>
         <p className="text-sm">
-          Only for documents that can never be rendered. The number stays used; the reason documents the gap in the
-          number sequence. This cannot be undone.
+          Only for documents that can never be rendered. The number stays used; the reason documents the gap in the number sequence. This
+          cannot be undone.
         </p>
         <div className="grid gap-1.5">
           <Label htmlFor="void-reason">Reason</Label>

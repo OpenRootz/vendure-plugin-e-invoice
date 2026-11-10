@@ -107,10 +107,19 @@ async function layOut(definition: PdfDocDefinition, fonts: PdfFonts, probe?: Lay
     probe.pageCount = 0;
     const own = definition.pageBreakBefore as ((...args: unknown[]) => boolean) | undefined;
     // pageBreakBefore is pdfmake's public hook that sees every laid-out node; it never forces a break here
-    definition.pageBreakBefore = (node: { id?: unknown; startPosition?: { pageNumber: number; left: number; top: number }; pageNumbers?: number[]; pages?: number }, ...rest: unknown[]) => {
+    definition.pageBreakBefore = (
+      node: { id?: unknown; startPosition?: { pageNumber: number; left: number; top: number }; pageNumbers?: number[]; pages?: number },
+      ...rest: unknown[]
+    ) => {
       probe.pageCount = Math.max(probe.pageCount, node.pages ?? 0);
       if (typeof node.id === 'string' && node.startPosition) {
-        probe.positions.push({ id: node.id, page: node.startPosition.pageNumber, pages: node.pageNumbers ?? [], left: node.startPosition.left, top: node.startPosition.top });
+        probe.positions.push({
+          id: node.id,
+          page: node.startPosition.pageNumber,
+          pages: node.pageNumbers ?? [],
+          left: node.startPosition.left,
+          top: node.startPosition.top,
+        });
       }
       return own ? own(node, ...rest) : false;
     };

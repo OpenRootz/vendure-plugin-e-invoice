@@ -22,7 +22,17 @@ function bytesOf(dataUrl: string): Uint8Array {
  * Renders one page of the PDF (a data URL) at `scale` CSS pixels per 0.1 mm. A new PDF is drawn into a hidden
  * canvas first and swapped in when done, so the page does not flicker while the preview re-renders.
  */
-export function PdfCanvas({ pdf, page, scale, onError }: { pdf: string | null | undefined; page: number; scale: number; onError?: (e: unknown) => void }) {
+export function PdfCanvas({
+  pdf,
+  page,
+  scale,
+  onError,
+}: {
+  pdf: string | null | undefined;
+  page: number;
+  scale: number;
+  onError?: (e: unknown) => void;
+}) {
   const canvases = [useRef<HTMLCanvasElement>(null), useRef<HTMLCanvasElement>(null)];
   const [visible, setVisible] = useState(0);
   const visibleRef = useRef(0);
@@ -66,7 +76,13 @@ export function PdfCanvas({ pdf, page, scale, onError }: { pdf: string | null | 
   return (
     <>
       {canvases.map((ref, i) => (
-        <canvas key={i} ref={ref} className="absolute left-0 top-0" style={{ visibility: visible === i ? 'visible' : 'hidden' }} aria-hidden />
+        <canvas
+          key={i}
+          ref={ref}
+          className="absolute left-0 top-0"
+          style={{ visibility: visible === i ? 'visible' : 'hidden' }}
+          aria-hidden
+        />
       ))}
     </>
   );

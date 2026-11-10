@@ -63,9 +63,7 @@ export class DownloadLinkService {
 
   private hmac(payload: SignedPayload, exp: number, channelToken: string): string {
     const subject =
-      payload.kind === 'file'
-        ? `file|${payload.invoiceId}|${payload.format ?? ''}`
-        : `zip|${payload.invoiceIds.map(String).join(',')}`;
+      payload.kind === 'file' ? `file|${payload.invoiceId}|${payload.format ?? ''}` : `zip|${payload.invoiceIds.map(String).join(',')}`;
     return createHmac('sha256', this.options.secret).update(`${subject}|${exp}|${channelToken}`).digest('base64url');
   }
 

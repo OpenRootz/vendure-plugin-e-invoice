@@ -1,4 +1,13 @@
-import { buildCreditNote, calculate, CreditNoteRequest, EInvoiceFormat, EInvoiceModel, InvoiceLine, Money, VatCategory } from '../../src/core';
+import {
+  buildCreditNote,
+  calculate,
+  CreditNoteRequest,
+  EInvoiceFormat,
+  EInvoiceModel,
+  InvoiceLine,
+  Money,
+  VatCategory,
+} from '../../src/core';
 import { mappingLabels } from '../../src/mapping/labels';
 import { model, VAT_19, VAT_7 } from './model-builders';
 
@@ -175,12 +184,19 @@ export const scenarios: Scenario[] = [
           sku: 'CONSULT',
           qty: '3',
           price: 12000,
-          vat: { code: 'AE', rate: '0', exemptionReason: 'Steuerschuldnerschaft des Leistungsempfängers', exemptionReasonCode: 'VATEX-EU-AE' },
+          vat: {
+            code: 'AE',
+            rate: '0',
+            exemptionReason: 'Steuerschuldnerschaft des Leistungsempfängers',
+            exemptionReasonCode: 'VATEX-EU-AE',
+          },
           tax: 0,
         },
       ]),
       payment: {
-        means: [{ code: '59', mandateReference: 'MANDATE-0815', creditorId: 'DE98ZZZ09999999999', debtorIban: 'FR7630006000011234567890189' }],
+        means: [
+          { code: '59', mandateReference: 'MANDATE-0815', creditorId: 'DE98ZZZ09999999999', debtorIban: 'FR7630006000011234567890189' },
+        ],
         terms: 'Der Betrag wird am Fälligkeitstag per SEPA-Lastschrift eingezogen.',
         dueDate: '2026-11-16',
         prepaidAmount: 0,
@@ -209,7 +225,12 @@ export const scenarios: Scenario[] = [
           sku: 'KAF-500',
           qty: '24',
           price: 1000,
-          vat: { code: 'K', rate: '0', exemptionReason: 'Steuerfreie innergemeinschaftliche Lieferung', exemptionReasonCode: 'VATEX-EU-IC' },
+          vat: {
+            code: 'K',
+            rate: '0',
+            exemptionReason: 'Steuerfreie innergemeinschaftliche Lieferung',
+            exemptionReasonCode: 'VATEX-EU-IC',
+          },
           tax: 0,
         },
       ]),

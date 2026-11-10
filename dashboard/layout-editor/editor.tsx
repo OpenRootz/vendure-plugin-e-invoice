@@ -32,7 +32,13 @@ const PRESETS: { value: LayoutPresetName; label: string }[] = [
  * (debounced); the measured blocks and the layout issues come back with it. Saving is disabled while the layout
  * checks report errors.
  */
-export function LayoutEditor({ saved, canUpdate }: { saved: { document: LayoutDocument; logoAssetId?: string | null }; canUpdate: boolean }) {
+export function LayoutEditor({
+  saved,
+  canUpdate,
+}: {
+  saved: { document: LayoutDocument; logoAssetId?: string | null };
+  canUpdate: boolean;
+}) {
   const queryClient = useQueryClient();
   const [history, setHistory] = useState<History>({ past: [], present: saved.document, future: [] });
   const [logoAssetId, setLogoAssetId] = useState<string | null | undefined>(saved.logoAssetId);
@@ -48,10 +54,17 @@ export function LayoutEditor({ saved, canUpdate }: { saved: { document: LayoutDo
   const change = useCallback((next: LayoutDocument) => {
     setHistory((h) => (next === h.present ? h : { past: [...h.past, h.present].slice(-HISTORY), present: next, future: [] }));
   }, []);
-  const undo = () => setHistory((h) => (h.past.length ? { past: h.past.slice(0, -1), present: h.past[h.past.length - 1], future: [h.present, ...h.future] } : h));
-  const redo = () => setHistory((h) => (h.future.length ? { past: [...h.past, h.present], present: h.future[0], future: h.future.slice(1) } : h));
+  const undo = () =>
+    setHistory((h) =>
+      h.past.length ? { past: h.past.slice(0, -1), present: h.past[h.past.length - 1], future: [h.present, ...h.future] } : h,
+    );
+  const redo = () =>
+    setHistory((h) => (h.future.length ? { past: [...h.past, h.present], present: h.future[0], future: h.future.slice(1) } : h));
 
-  const { preview, isFetching, error, noOrder } = useLayoutPreview({ layout: { document: layout, logoAssetId: logoAssetId ?? null } }, options);
+  const { preview, isFetching, error, noOrder } = useLayoutPreview(
+    { layout: { document: layout, logoAssetId: logoAssetId ?? null } },
+    options,
+  );
   const pageCount = preview?.pageCount || 1;
   const issues = (preview?.layoutIssues ?? []) as LayoutIssue[];
   const errors = issues.filter((i) => i.level === 'error');
@@ -98,7 +111,10 @@ export function LayoutEditor({ saved, canUpdate }: { saved: { document: LayoutDo
       visible: true,
       pages: type === 'pageNumber' ? 'all' : 'first',
       overflow: 'fixed',
-      frame: type === 'pageNumber' ? { x: 1500, y: 2500, w: 400, h: 60 } : { x: 198, y: 300, w: type === 'image' ? 400 : 800, h: type === 'image' ? 200 : 100 },
+      frame:
+        type === 'pageNumber'
+          ? { x: 1500, y: 2500, w: 400, h: 60 }
+          : { x: 198, y: 300, w: type === 'image' ? 400 : 800, h: type === 'image' ? 200 : 100 },
       ...(type === 'customText' ? { props: { text: 'Text' } } : {}),
       ...(type === 'pageNumber' ? { style: { align: 'right' as const, fontSize: 7 } } : {}),
     };
@@ -127,18 +143,31 @@ export function LayoutEditor({ saved, canUpdate }: { saved: { document: LayoutDo
       return change(removeBlock(layout, block.key));
     }
     const step = e.shiftKey ? 50 : 5;
-    const delta: Record<string, [number, number]> = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
+    const delta: Record<string, [number, number]> = {
+      ArrowLeft: [-step, 0],
+      ArrowRight: [step, 0],
+      ArrowUp: [0, -step],
+      ArrowDown: [0, step],
+    };
     const d = delta[e.key];
     if (d && !locked.has(block.key)) {
       e.preventDefault();
-      change(updateBlock(layout, block.key, (b) => ({ ...b, frame: { ...b.frame, x: b.frame.x + d[0], y: b.frame.y + d[1] }, anchor: d[1] ? undefined : b.anchor })));
+      change(
+        updateBlock(layout, block.key, (b) => ({
+          ...b,
+          frame: { ...b.frame, x: b.frame.x + d[0], y: b.frame.y + d[1] },
+          anchor: d[1] ? undefined : b.anchor,
+        })),
+      );
     }
   };
 
   const boxes = useMemo(() => preview?.blocks ?? [], [preview]);
   const logoControl = (
     <div className="grid gap-1.5">
-      {logoAssetId && logo.data?.asset && <img src={logo.data.asset.preview + '?preset=thumb'} alt={logo.data.asset.name} className="h-12 w-auto object-contain" />}
+      {logoAssetId && logo.data?.asset && (
+        <img src={logo.data.asset.preview + '?preset=thumb'} alt={logo.data.asset.name} className="h-12 w-auto object-contain" />
+      )}
       <div className="flex gap-2">
         <Button size="sm" variant="outline" onClick={() => setPicker({})}>
           {logoAssetId ? 'Change logo' : 'Select logo'}
@@ -242,7 +271,12 @@ export function LayoutEditor({ saved, canUpdate }: { saved: { document: LayoutDo
           <PreviewToolbar options={options} onChange={setOptions} preview={preview} page={page} onPage={setPage} isFetching={isFetching} />
           <div className="overflow-auto rounded border bg-muted/40 p-4">
             <div className="relative mx-auto bg-white shadow" style={{ width: PAGE.w * zoom, height: PAGE.h * zoom }}>
-              <PdfCanvas pdf={preview?.pdf} page={Math.min(page, pageCount)} scale={zoom} onError={(e) => toast.error('Could not display the PDF', { description: errorMessage(e) })} />
+              <PdfCanvas
+                pdf={preview?.pdf}
+                page={Math.min(page, pageCount)}
+                scale={zoom}
+                onError={(e) => toast.error('Could not display the PDF', { description: errorMessage(e) })}
+              />
               <LayoutOverlay
                 layout={layout}
                 boxes={boxes}
@@ -261,7 +295,12 @@ export function LayoutEditor({ saved, canUpdate }: { saved: { document: LayoutDo
             <ul className="space-y-1 text-sm" aria-label="Layout issues">
               {issues.map((issue, i) => (
                 <li key={`${issue.code}-${i}`} className={issue.level === 'error' ? 'text-destructive' : 'text-amber-700'}>
-                  <button type="button" className="text-left hover:underline" disabled={!issue.blockKey} onClick={() => issue.blockKey && setSelected(issue.blockKey)}>
+                  <button
+                    type="button"
+                    className="text-left hover:underline"
+                    disabled={!issue.blockKey}
+                    onClick={() => issue.blockKey && setSelected(issue.blockKey)}
+                  >
                     <span className="font-mono text-xs">{issue.code}</span> {issue.message}
                   </button>
                 </li>

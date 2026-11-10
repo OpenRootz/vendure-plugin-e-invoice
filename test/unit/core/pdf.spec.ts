@@ -47,7 +47,8 @@ describe('ZUGFeRD PDF', () => {
 
   it('renders an SVG logo', async () => {
     const model = scenarios[0].model;
-    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="40"><rect x="0" y="0" width="120" height="40" rx="6" fill="#1a5fb4"/></svg>';
+    const svg =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="40"><rect x="0" y="0" width="120" height="40" rx="6" fill="#1a5fb4"/></svg>';
     const definition = defaultTemplate({ model, labels: pdfLabels('de'), logo: { svg } });
     const pdf = await renderZugferdPdf({ model, xml: toCii(model, 'zugferd'), definition, title: 'x' });
     fs.writeFileSync(path.join(OUT, 'svg-logo.pdf'), pdf);

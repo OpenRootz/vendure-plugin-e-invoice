@@ -38,7 +38,12 @@ export interface RenderedFile {
 export class ValidationFailedError extends Error {
   constructor(public summary: ValidationSummary) {
     const errors = summary.results.flatMap((r) => r.messages.filter((m) => m.level === 'error'));
-    const detail = summary.error ?? errors.slice(0, 5).map((m) => (m.code ? `${m.code}: ${m.text}` : m.text)).join('; ');
+    const detail =
+      summary.error ??
+      errors
+        .slice(0, 5)
+        .map((m) => (m.code ? `${m.code}: ${m.text}` : m.text))
+        .join('; ');
     super(`Validation failed${detail ? `: ${detail}` : ''}`);
   }
 }
@@ -182,9 +187,18 @@ export class InvoiceRenderService {
       switch (format) {
         case 'zugferd': {
           const pdf = await this.renderPdfDetailed(ctx, model);
-          const warnings = (pdf.layout?.issues ?? []).filter((i) => i.code === 'LAYOUT_OVERFLOW').map((i) => ({ code: i.code, text: i.message }));
+          const warnings = (pdf.layout?.issues ?? [])
+            .filter((i) => i.code === 'LAYOUT_OVERFLOW')
+            .map((i) => ({ code: i.code, text: i.message }));
           for (const w of warnings) Logger.warn(`E-invoice ${model.number}: ${w.text}`, loggerCtx);
-          files.push({ format, fileName: `${base}.pdf`, mimeType: 'application/pdf', data: pdf.pdf, xml: toCii(model, 'zugferd'), warnings });
+          files.push({
+            format,
+            fileName: `${base}.pdf`,
+            mimeType: 'application/pdf',
+            data: pdf.pdf,
+            xml: toCii(model, 'zugferd'),
+            warnings,
+          });
           break;
         }
         case 'xrechnung-cii':
@@ -230,7 +244,12 @@ export class InvoiceRenderService {
   }
 
   /** What a PDF strategy gets: model, labels, layout, logo and the images of image blocks. */
-  async templateInput(ctx: RequestContext, model: EInvoiceModel, layout: LayoutSettings, issues?: RenderedPdf['issues']): Promise<PdfTemplateInput> {
+  async templateInput(
+    ctx: RequestContext,
+    model: EInvoiceModel,
+    layout: LayoutSettings,
+    issues?: RenderedPdf['issues'],
+  ): Promise<PdfTemplateInput> {
     const images: Record<string, PdfImage> = {};
     for (const block of layout.blocks.filter((b) => b.visible && b.type === 'image' && b.props?.assetId !== undefined)) {
       const id = String(block.props!.assetId);

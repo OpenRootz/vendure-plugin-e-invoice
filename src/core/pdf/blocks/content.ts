@@ -19,7 +19,12 @@ export const customText: BlockRenderer = ({ block, model, f }) => {
   const text = textProp(block);
   if (!text) return null;
   return {
-    text: fill(text, { number: model.number, issueDate: f.date(model.issueDate), orderCode: model.meta.orderCode, buyerName: model.buyer.name }),
+    text: fill(text, {
+      number: model.number,
+      issueDate: f.date(model.issueDate),
+      orderCode: model.meta.orderCode,
+      buyerName: model.buyer.name,
+    }),
   };
 };
 
@@ -30,11 +35,18 @@ export const lines: BlockRenderer = ({ model, labels, f, accent, block }) => {
   const columns = (block.props?.columns ?? {}) as { position?: boolean; widths?: Partial<Record<LineColumn, number>> };
   const showPosition = columns.position !== false;
   const width = (c: LineColumn) => (columns.widths?.[c] !== undefined ? toPt(columns.widths[c]!) : COLUMN_WIDTHS[c]);
-  const headers = [labels.position, labels.description, labels.quantity, `${labels.unitPrice} ${kind}`, labels.vatRate, `${labels.amount} ${kind}`];
+  const headers = [
+    labels.position,
+    labels.description,
+    labels.quantity,
+    `${labels.unitPrice} ${kind}`,
+    labels.vatRate,
+    `${labels.amount} ${kind}`,
+  ];
   const header = headers.map((text, i) => ({ text, bold: true, fontSize: 8, alignment: i >= 2 ? 'right' : 'left', color: accent }));
   const rows = model.lines.map((line) => lineRow(line, gross, labels, f));
   const docRows = [...model.charges.map((c) => docRow(c, false, gross, f)), ...model.allowances.map((a) => docRow(a, true, gross, f))];
-  const drop = <T,>(row: T[]) => (showPosition ? row : row.slice(1));
+  const drop = <T>(row: T[]) => (showPosition ? row : row.slice(1));
   const widths = [width('position'), '*', width('quantity'), width('unitPrice'), width('vatRate'), width('amount')];
   return {
     table: { headerRows: 1, widths: drop(widths), body: [header, ...rows, ...docRows].map(drop) },
@@ -145,7 +157,9 @@ export const payment: BlockRenderer = ({ model, labels, f }) => {
 
 function meansText(means: PaymentMeans, model: EInvoiceModel, labels: PdfLabels): PdfNode[] {
   if (means.code === '58' && 'iban' in means && means.iban) {
-    const account = [`IBAN ${formatIban(means.iban)}`, means.bic ? `BIC ${means.bic}` : '', means.accountName ?? model.seller.name].filter(Boolean);
+    const account = [`IBAN ${formatIban(means.iban)}`, means.bic ? `BIC ${means.bic}` : '', means.accountName ?? model.seller.name].filter(
+      Boolean,
+    );
     return [
       labels.transferTo,
       { text: account.join(' · '), bold: true },

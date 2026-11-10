@@ -43,22 +43,24 @@ export function InvoiceListPage({ route }: { route: AnyRoute }) {
       title="E-Invoices"
       listQuery={eInvoiceListDocument as any}
       defaultSort={[{ id: 'createdAt', desc: true }]}
-      defaultVisibility={{
-        number: true,
-        type: true,
-        status: true,
-        issueDate: true,
-        orderCode: true,
-        totalWithTax: true,
-        files: true,
-        reason: false,
-        totalNet: false,
-        totalTax: false,
-        currencyCode: false,
-        createdAt: false,
-        updatedAt: false,
-        order: false,
-      } as any}
+      defaultVisibility={
+        {
+          number: true,
+          type: true,
+          status: true,
+          issueDate: true,
+          orderCode: true,
+          totalWithTax: true,
+          files: true,
+          reason: false,
+          totalNet: false,
+          totalTax: false,
+          currencyCode: false,
+          createdAt: false,
+          updatedAt: false,
+          order: false,
+        } as any
+      }
       defaultColumnOrder={['number', 'type', 'status', 'issueDate', 'orderCode', 'totalWithTax', 'files'] as any}
       searchPlaceholder="Search by number or order code…"
       onSearchTermChange={(term: string) =>

@@ -42,7 +42,19 @@ const FACTURX_XMP = `
 </rdf:Description>`;
 
 /** Template keys that would break PDF/A or the ZUGFeRD structure; the plugin sets or removes them. */
-const ENFORCED_KEYS = ['version', 'subset', 'tagged', 'language', 'info', 'files', 'attachments', 'userPassword', 'ownerPassword', 'permissions', 'compress'];
+const ENFORCED_KEYS = [
+  'version',
+  'subset',
+  'tagged',
+  'language',
+  'info',
+  'files',
+  'attachments',
+  'userPassword',
+  'ownerPassword',
+  'permissions',
+  'compress',
+];
 
 export interface ZugferdPdfInput {
   model: EInvoiceModel;

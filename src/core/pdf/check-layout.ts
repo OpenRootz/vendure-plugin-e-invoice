@@ -2,19 +2,21 @@ import { EInvoiceModel } from '../model';
 
 import { exemptionTexts } from './blocks';
 import type { LayoutMeasurement } from './engine';
-import { BlockType, DETAIL_FIELDS, DetailField, LayoutBlock, LayoutIssue, MIN_FONT_SIZE, PAGE_SIZES, PdfLayoutV2, validColor } from './layout';
+import {
+  BlockType,
+  DETAIL_FIELDS,
+  DetailField,
+  LayoutBlock,
+  LayoutIssue,
+  MIN_FONT_SIZE,
+  PAGE_SIZES,
+  PdfLayoutV2,
+  validColor,
+} from './layout';
 
 /** Content §14 Abs. 4 UStG requires on an invoice, and the blocks that can carry it. */
 export type MandatoryField =
-  | 'sellerAddress'
-  | 'sellerTaxId'
-  | 'buyerAddress'
-  | 'number'
-  | 'issueDate'
-  | 'deliveryDate'
-  | 'lines'
-  | 'vatBreakdown'
-  | 'exemption';
+  'sellerAddress' | 'sellerTaxId' | 'buyerAddress' | 'number' | 'issueDate' | 'deliveryDate' | 'lines' | 'vatBreakdown' | 'exemption';
 
 export const MANDATORY_FIELDS: { field: MandatoryField; label: string }[] = [
   { field: 'sellerAddress', label: 'Seller name and address' },
@@ -44,7 +46,12 @@ export function blockCoverage(block: LayoutBlock): MandatoryField[] {
   };
   if (block.type === 'details') {
     const fields = detailFields(block);
-    const map: Partial<Record<DetailField, MandatoryField>> = { number: 'number', issueDate: 'issueDate', deliveryDate: 'deliveryDate', sellerTaxId: 'sellerTaxId' };
+    const map: Partial<Record<DetailField, MandatoryField>> = {
+      number: 'number',
+      issueDate: 'issueDate',
+      deliveryDate: 'deliveryDate',
+      sellerTaxId: 'sellerTaxId',
+    };
     return fields.map((f) => map[f]).filter((f): f is MandatoryField => !!f);
   }
   return byType[block.type] ?? [];
@@ -59,7 +66,9 @@ export function layoutCoverage(layout: PdfLayoutV2): Record<MandatoryField, stri
 
 /** Relative luminance contrast of a color against white (WCAG). */
 function contrastOnWhite(hex: string): number {
-  const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+  const c = [1, 3, 5]
+    .map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+    .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
   const l = 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
   return 1.05 / (l + 0.05);
 }
@@ -81,9 +90,15 @@ export interface CheckLayoutOptions {
  * - frames outside the page, two growing blocks side by side, unknown font.
  * Warnings: the 5 mm unprintable border, overlapping blocks, the DIN 5008 window, small fonts, low contrast.
  */
-export function checkLayout(layout: PdfLayoutV2, measurement?: LayoutMeasurement, model?: EInvoiceModel, options: CheckLayoutOptions = {}): LayoutIssue[] {
+export function checkLayout(
+  layout: PdfLayoutV2,
+  measurement?: LayoutMeasurement,
+  model?: EInvoiceModel,
+  options: CheckLayoutOptions = {},
+): LayoutIssue[] {
   const issues: LayoutIssue[] = [];
-  const add = (level: LayoutIssue['level'], code: string, message: string, blockKey?: string) => issues.push({ level, code, message, blockKey });
+  const add = (level: LayoutIssue['level'], code: string, message: string, blockKey?: string) =>
+    issues.push({ level, code, message, blockKey });
   const page = PAGE_SIZES[layout.page.size];
   const visible = layout.blocks.filter((b) => b.visible);
 
@@ -105,7 +120,12 @@ export function checkLayout(layout: PdfLayoutV2, measurement?: LayoutMeasurement
       add('warning', 'UNPRINTABLE_AREA', `Block ${b.key} reaches into the 5 mm border most printers cannot print`, b.key);
     }
     if (b.overflow === 'grow' && !anchored && y < layout.continuation.top) {
-      add('warning', 'FLOW_ABOVE_TOP', `Block ${b.key} grows, so it cannot start above the flow area (${layout.continuation.top / 10} mm)`, b.key);
+      add(
+        'warning',
+        'FLOW_ABOVE_TOP',
+        `Block ${b.key} grows, so it cannot start above the flow area (${layout.continuation.top / 10} mm)`,
+        b.key,
+      );
     }
   }
 
@@ -117,7 +137,12 @@ export function checkLayout(layout: PdfLayoutV2, measurement?: LayoutMeasurement
       const sideBySide = a.frame.x + a.frame.w <= b.frame.x || b.frame.x + b.frame.w <= a.frame.x;
       const band = Math.max(a.frame.h, b.frame.h, 50);
       if (sideBySide && Math.abs(a.frame.y - b.frame.y) < band) {
-        add('error', 'PARALLEL_GROWTH', `Blocks ${a.key} and ${b.key} both grow and stand side by side; make one of them fixed or anchor it below the other`, b.key);
+        add(
+          'error',
+          'PARALLEL_GROWTH',
+          `Blocks ${a.key} and ${b.key} both grow and stand side by side; make one of them fixed or anchor it below the other`,
+          b.key,
+        );
       }
     }
   }
@@ -126,7 +151,12 @@ export function checkLayout(layout: PdfLayoutV2, measurement?: LayoutMeasurement
   if (measurement) {
     for (const box of measurement.boxes) {
       if (box.overflowBy) {
-        add('error', 'CLIPPED', `The content of block ${box.key} does not fit into its frame (${(box.overflowBy / 10).toFixed(1)} mm too tall); make the frame larger or the font smaller`, box.key);
+        add(
+          'error',
+          'CLIPPED',
+          `The content of block ${box.key} does not fit into its frame (${(box.overflowBy / 10).toFixed(1)} mm too tall); make the frame larger or the font smaller`,
+          box.key,
+        );
       }
     }
     const boxes = measurement.boxes.filter((bx) => visible.some((b) => b.key === bx.key) && bx.h > 0);
@@ -151,7 +181,12 @@ export function checkLayout(layout: PdfLayoutV2, measurement?: LayoutMeasurement
     for (const b of visible.filter((x) => x.type === 'recipient' || x.type === 'senderLine')) {
       const { x, y, w, h } = b.frame;
       if (b.anchor || x < win.x || y < win.y || x + w > win.x + win.w || y + h > win.y + win.h) {
-        add('warning', 'NOT_IN_WINDOW', `Block ${b.key} is not inside the window of a DIN 5008 Form ${layout.windowEnvelope} envelope`, b.key);
+        add(
+          'warning',
+          'NOT_IN_WINDOW',
+          `Block ${b.key} is not inside the window of a DIN 5008 Form ${layout.windowEnvelope} envelope`,
+          b.key,
+        );
       }
     }
   }
@@ -159,7 +194,8 @@ export function checkLayout(layout: PdfLayoutV2, measurement?: LayoutMeasurement
   // --- readability ---
   if (layout.theme.fontSize < MIN_FONT_SIZE) add('warning', 'SMALL_FONT', `The base font size is below ${MIN_FONT_SIZE} pt`);
   for (const b of visible) {
-    if (b.style?.fontSize !== undefined && b.style.fontSize < MIN_FONT_SIZE) add('warning', 'SMALL_FONT', `Block ${b.key} uses a font below ${MIN_FONT_SIZE} pt`, b.key);
+    if (b.style?.fontSize !== undefined && b.style.fontSize < MIN_FONT_SIZE)
+      add('warning', 'SMALL_FONT', `Block ${b.key} uses a font below ${MIN_FONT_SIZE} pt`, b.key);
     if (b.style?.color && validColor(b.style.color) && contrastOnWhite(b.style.color) < 3) {
       add('warning', 'LOW_CONTRAST', `The text color of block ${b.key} has too little contrast on white`, b.key);
     }

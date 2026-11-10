@@ -92,8 +92,18 @@ export interface BlockProps {
   lines: { columns?: { position?: boolean; widths?: Partial<Record<LineColumn, number>> } };
 }
 
-export type DetailField = 'number' | 'issueDate' | 'deliveryDate' | 'orderNumber' | 'purchaseOrder' | 'buyerReference' | 'buyerVatId' | 'sellerTaxId';
-export const DETAIL_FIELDS: DetailField[] = ['number', 'issueDate', 'deliveryDate', 'orderNumber', 'purchaseOrder', 'buyerReference', 'buyerVatId', 'sellerTaxId'];
+export type DetailField =
+  'number' | 'issueDate' | 'deliveryDate' | 'orderNumber' | 'purchaseOrder' | 'buyerReference' | 'buyerVatId' | 'sellerTaxId';
+export const DETAIL_FIELDS: DetailField[] = [
+  'number',
+  'issueDate',
+  'deliveryDate',
+  'orderNumber',
+  'purchaseOrder',
+  'buyerReference',
+  'buyerVatId',
+  'sellerTaxId',
+];
 export type LineColumn = 'position' | 'quantity' | 'unitPrice' | 'vatRate' | 'amount';
 
 export interface PdfLayoutV2 {
@@ -153,18 +163,41 @@ export function defaultLayout(v1: PdfLayout = {}): PdfLayoutV2 {
     theme: { accentColor: validColor(v1.accentColor) ? v1.accentColor! : DEFAULT_ACCENT, fontSize: 9 },
     blocks: [
       block({ key: 'logo', type: 'logo', frame: { x: 1337, y: 169, w: 564, h: 212 }, overflow: 'fixed', style: { align: 'right' } }),
-      block({ key: 'senderLine', type: 'senderLine', frame: { x: 198, y: 423, w: 878, h: 39 }, overflow: 'fixed', style: { fontSize: 7, color: '#555555' } }),
+      block({
+        key: 'senderLine',
+        type: 'senderLine',
+        frame: { x: 198, y: 423, w: 878, h: 39 },
+        overflow: 'fixed',
+        style: { fontSize: 7, color: '#555555' },
+      }),
       block({ key: 'recipient', type: 'recipient', frame: { x: 198, y: 478, w: 878, h: 370 }, overflow: 'fixed' }),
       block({ key: 'details', type: 'details', frame: { x: 1161, y: 423, w: 741, h: 425 }, overflow: 'fixed' }),
       block({ key: 'deliveryAddress', type: 'deliveryAddress', frame: { x: 198, y: 848, w: 1704, h: 0 } }),
       block({ key: 'title', type: 'title', frame: { x: 198, y: 933, w: 1704, h: 0 }, anchor: { to: 'deliveryAddress', gap: 85 } }),
-      block({ key: 'introText', type: 'introText', frame: { x: 198, y: 1000, w: 1704, h: 0 }, anchor: { to: 'title', gap: 28 }, props: textProp(v1.introText) }),
+      block({
+        key: 'introText',
+        type: 'introText',
+        frame: { x: 198, y: 1000, w: 1704, h: 0 },
+        anchor: { to: 'title', gap: 28 },
+        props: textProp(v1.introText),
+      }),
       block({ key: 'lines', type: 'lines', frame: { x: 198, y: 1100, w: 1704, h: 0 }, anchor: { to: 'introText', gap: 49 } }),
       block({ key: 'totals', type: 'totals', frame: { x: 1055, y: 1400, w: 847, h: 0 }, anchor: { to: 'lines', gap: 35 } }),
-      block({ key: 'exemptionNotes', type: 'exemptionNotes', frame: { x: 198, y: 1600, w: 1704, h: 0 }, anchor: { to: 'totals', gap: 35 } }),
+      block({
+        key: 'exemptionNotes',
+        type: 'exemptionNotes',
+        frame: { x: 198, y: 1600, w: 1704, h: 0 },
+        anchor: { to: 'totals', gap: 35 },
+      }),
       block({ key: 'notes', type: 'notes', frame: { x: 198, y: 1650, w: 1704, h: 0 }, anchor: { to: 'exemptionNotes', gap: 28 } }),
       block({ key: 'payment', type: 'payment', frame: { x: 198, y: 1700, w: 1704, h: 0 }, anchor: { to: 'notes', gap: 56 } }),
-      block({ key: 'closingText', type: 'closingText', frame: { x: 198, y: 1850, w: 1704, h: 0 }, anchor: { to: 'payment', gap: 42 }, props: textProp(v1.closingText) }),
+      block({
+        key: 'closingText',
+        type: 'closingText',
+        frame: { x: 198, y: 1850, w: 1704, h: 0 },
+        anchor: { to: 'payment', gap: 42 },
+        props: textProp(v1.closingText),
+      }),
       block({
         key: 'footer',
         type: 'footer',
@@ -210,7 +243,12 @@ export function v1Fields(layout: PdfLayoutV2): Required<PdfLayout> {
     const t = layout.blocks.find((b) => b.type === type)?.props?.text;
     return typeof t === 'string' ? t : '';
   };
-  return { accentColor: layout.theme.accentColor, introText: text('introText'), closingText: text('closingText'), footerText: text('footer') };
+  return {
+    accentColor: layout.theme.accentColor,
+    introText: text('introText'),
+    closingText: text('closingText'),
+    footerText: text('footer'),
+  };
 }
 
 // --- parsing / structural validation ---
@@ -242,7 +280,9 @@ const ALLOWED_PROPS: Record<BlockType, Record<string, (v: unknown) => boolean>> 
       (v.position === undefined || typeof v.position === 'boolean') &&
       (v.widths === undefined ||
         (isObj(v.widths) &&
-          Object.entries(v.widths).every(([k, w]) => ['position', 'quantity', 'unitPrice', 'vatRate', 'amount'].includes(k) && isInt(w) && w >= 50 && w <= 1000))),
+          Object.entries(v.widths).every(
+            ([k, w]) => ['position', 'quantity', 'unitPrice', 'vatRate', 'amount'].includes(k) && isInt(w) && w >= 50 && w <= 1000,
+          ))),
   },
   totals: {},
   exemptionNotes: {},
@@ -276,14 +316,24 @@ export function parseLayout(input: unknown): { layout?: PdfLayoutV2; issues: Lay
   }
   const cont = input.continuation;
   if (!isObj(cont) || !isInt(cont.top) || !isInt(cont.bottom) || cont.top < 0 || cont.bottom < 0 || cont.top + cont.bottom > 2500) {
-    error('INVALID_LAYOUT', 'continuation.top and continuation.bottom must be integers (0.1 mm); the flow area must stay at least 4.7 cm high');
+    error(
+      'INVALID_LAYOUT',
+      'continuation.top and continuation.bottom must be integers (0.1 mm); the flow area must stay at least 4.7 cm high',
+    );
   }
   const theme = input.theme;
   if (!isObj(theme) || !validColor(theme.accentColor)) error('INVALID_LAYOUT', 'theme.accentColor must be a hex color like #1a5fb4');
-  if (isObj(theme) && (typeof theme.fontSize !== 'number' || theme.fontSize < MIN_FONT_SIZE || theme.fontSize > MAX_FONT_SIZE || (theme.fontSize * 2) % 1 !== 0)) {
+  if (
+    isObj(theme) &&
+    (typeof theme.fontSize !== 'number' ||
+      theme.fontSize < MIN_FONT_SIZE ||
+      theme.fontSize > MAX_FONT_SIZE ||
+      (theme.fontSize * 2) % 1 !== 0)
+  ) {
     error('INVALID_LAYOUT', `theme.fontSize must be between ${MIN_FONT_SIZE} and ${MAX_FONT_SIZE} pt in steps of 0.5`);
   }
-  if (isObj(theme) && theme.font !== undefined && (typeof theme.font !== 'string' || !theme.font)) error('INVALID_LAYOUT', 'theme.font must be a font family name');
+  if (isObj(theme) && theme.font !== undefined && (typeof theme.font !== 'string' || !theme.font))
+    error('INVALID_LAYOUT', 'theme.font must be a font family name');
   if (input.windowEnvelope !== undefined && input.windowEnvelope !== 'A' && input.windowEnvelope !== 'B') {
     error('INVALID_LAYOUT', 'windowEnvelope must be A or B');
   }
@@ -303,7 +353,8 @@ export function parseLayout(input: unknown): { layout?: PdfLayoutV2; issues: Lay
       continue;
     }
     const id = raw.key;
-    if (typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,40}$/.test(id)) error('INVALID_BLOCK', `Block ${label}: key must be 1–40 letters, digits, - or _`);
+    if (typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,40}$/.test(id))
+      error('INVALID_BLOCK', `Block ${label}: key must be 1–40 letters, digits, - or _`);
     else if (ids.has(id)) error('DUPLICATE_KEY', `Block key "${id}" is used twice`, id);
     else ids.add(id);
     const blockKey = typeof id === 'string' ? id : undefined;
@@ -318,12 +369,25 @@ export function parseLayout(input: unknown): { layout?: PdfLayoutV2; issues: Lay
       }
     }
     if (typeof raw.visible !== 'boolean') error('INVALID_BLOCK', `Block ${label}: visible must be true or false`, blockKey);
-    if (!['first', 'all', 'following', 'last'].includes(raw.pages as string)) error('INVALID_BLOCK', `Block ${label}: pages must be first, all, following or last`, blockKey);
-    if (raw.overflow !== 'grow' && raw.overflow !== 'fixed') error('INVALID_BLOCK', `Block ${label}: overflow must be grow or fixed`, blockKey);
+    if (!['first', 'all', 'following', 'last'].includes(raw.pages as string))
+      error('INVALID_BLOCK', `Block ${label}: pages must be first, all, following or last`, blockKey);
+    if (raw.overflow !== 'grow' && raw.overflow !== 'fixed')
+      error('INVALID_BLOCK', `Block ${label}: overflow must be grow or fixed`, blockKey);
     const f = raw.frame;
-    if (!isObj(f) || ![f.x, f.y, f.w, f.h].every(isInt) || (f.w as number) < 1 || (f.h as number) < 0 || (f.x as number) < -1000 || (f.y as number) < -1000 || (f.x as number) > 5000 || (f.y as number) > 5000 || (f.w as number) > 5000 || (f.h as number) > 5000) {
+    if (
+      !isObj(f) ||
+      ![f.x, f.y, f.w, f.h].every(isInt) ||
+      (f.w as number) < 1 ||
+      (f.h as number) < 0 ||
+      (f.x as number) < -1000 ||
+      (f.y as number) < -1000 ||
+      (f.x as number) > 5000 ||
+      (f.y as number) > 5000 ||
+      (f.w as number) > 5000 ||
+      (f.h as number) > 5000
+    ) {
       error('INVALID_FRAME', `Block ${label}: frame must have integer x, y, w (≥ 1) and h (≥ 0) in 0.1 mm`, blockKey);
-    } else if ((raw.overflow === 'fixed' && (f.h as number) < 1)) {
+    } else if (raw.overflow === 'fixed' && (f.h as number) < 1) {
       error('INVALID_FRAME', `Block ${label}: a fixed block needs a height`, blockKey);
     }
     if (raw.anchor !== undefined) {
@@ -337,11 +401,17 @@ export function parseLayout(input: unknown): { layout?: PdfLayoutV2; issues: Lay
       const ok =
         isObj(s) &&
         Object.keys(s).every((k) => ['fontSize', 'bold', 'align', 'color'].includes(k)) &&
-        (s.fontSize === undefined || (typeof s.fontSize === 'number' && s.fontSize >= 1 && s.fontSize <= MAX_FONT_SIZE && (s.fontSize * 2) % 1 === 0)) &&
+        (s.fontSize === undefined ||
+          (typeof s.fontSize === 'number' && s.fontSize >= 1 && s.fontSize <= MAX_FONT_SIZE && (s.fontSize * 2) % 1 === 0)) &&
         (s.bold === undefined || typeof s.bold === 'boolean') &&
         (s.align === undefined || ['left', 'center', 'right'].includes(s.align as string)) &&
         (s.color === undefined || validColor(s.color));
-      if (!ok) error('INVALID_STYLE', `Block ${label}: style has invalid values (fontSize in pt, steps of 0.5; align left/center/right; color #rrggbb)`, blockKey);
+      if (!ok)
+        error(
+          'INVALID_STYLE',
+          `Block ${label}: style has invalid values (fontSize in pt, steps of 0.5; align left/center/right; color #rrggbb)`,
+          blockKey,
+        );
     }
     if (raw.props !== undefined) {
       if (!isObj(raw.props)) error('INVALID_PROPS', `Block ${label}: props must be an object`, blockKey);
@@ -351,7 +421,8 @@ export function parseLayout(input: unknown): { layout?: PdfLayoutV2; issues: Lay
           if (value === undefined || value === null) continue;
           if (!check) error('UNKNOWN_PROPERTY', `Block ${label}: unknown prop "${key}" for ${type}`, blockKey);
           else if (!check(value)) error('INVALID_PROPS', `Block ${label}: invalid value for prop "${key}"`, blockKey);
-          if (typeof value === 'string' && value.length > MAX_TEXT) error('TEXT_TOO_LONG', `Block ${label}: ${key} is longer than ${MAX_TEXT} characters`, blockKey);
+          if (typeof value === 'string' && value.length > MAX_TEXT)
+            error('TEXT_TOO_LONG', `Block ${label}: ${key} is longer than ${MAX_TEXT} characters`, blockKey);
         }
       }
     }
@@ -376,8 +447,15 @@ export function checkAnchors(layout: PdfLayoutV2): LayoutIssue[] {
   const anchoredTo = new Map<string, string>();
   for (const b of layout.blocks) {
     if (!b.anchor) continue;
-    if (b.anchor.to === b.key) issues.push({ level: 'error', code: 'ANCHOR_CYCLE', message: `Block ${b.key} is anchored to itself`, blockKey: b.key });
-    else if (!byId.has(b.anchor.to)) issues.push({ level: 'error', code: 'ANCHOR_MISSING', message: `Block ${b.key} is anchored to the missing block "${b.anchor.to}"`, blockKey: b.key });
+    if (b.anchor.to === b.key)
+      issues.push({ level: 'error', code: 'ANCHOR_CYCLE', message: `Block ${b.key} is anchored to itself`, blockKey: b.key });
+    else if (!byId.has(b.anchor.to))
+      issues.push({
+        level: 'error',
+        code: 'ANCHOR_MISSING',
+        message: `Block ${b.key} is anchored to the missing block "${b.anchor.to}"`,
+        blockKey: b.key,
+      });
     else if (anchoredTo.has(b.anchor.to)) {
       issues.push({
         level: 'error',
@@ -398,7 +476,12 @@ export function checkAnchors(layout: PdfLayoutV2): LayoutIssue[] {
         const key = [...members].sort().join(',');
         if (!cycles.has(key)) {
           cycles.add(key);
-          issues.push({ level: 'error', code: 'ANCHOR_CYCLE', message: `The anchors of blocks ${members.join(', ')} form a cycle`, blockKey: members[0] });
+          issues.push({
+            level: 'error',
+            code: 'ANCHOR_CYCLE',
+            message: `The anchors of blocks ${members.join(', ')} form a cycle`,
+            blockKey: members[0],
+          });
         }
         break;
       }

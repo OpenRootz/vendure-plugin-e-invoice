@@ -134,7 +134,15 @@ function header(input: PdfTemplateInput, f: Formatters): Node {
             margin: [0, 10, 0, 0],
             stack: [
               { text: labels.deliveryAddress, style: 'small' },
-              { text: addressLines(model.delivery.name ?? '', model.delivery.address, undefined, model.seller.address.countryCode, labels).join(', ') },
+              {
+                text: addressLines(
+                  model.delivery.name ?? '',
+                  model.delivery.address,
+                  undefined,
+                  model.seller.address.countryCode,
+                  labels,
+                ).join(', '),
+              },
             ],
           }
         : '',
@@ -171,14 +179,16 @@ function withTax(amount: Money, rate: string, vendureTax: Money | undefined): Mo
 function lineTable(model: EInvoiceModel, labels: PdfLabels, f: Formatters, accent: string): Node {
   const gross = model.meta.priceDisplay === 'gross';
   const kind = gross ? labels.gross : labels.net;
-  const header = [labels.position, labels.description, labels.quantity, `${labels.unitPrice} ${kind}`, labels.vatRate, `${labels.amount} ${kind}`].map(
-    (text, i) => ({ text, style: 'tableHeader', alignment: i >= 2 ? 'right' : 'left', color: accent }),
-  );
+  const header = [
+    labels.position,
+    labels.description,
+    labels.quantity,
+    `${labels.unitPrice} ${kind}`,
+    labels.vatRate,
+    `${labels.amount} ${kind}`,
+  ].map((text, i) => ({ text, style: 'tableHeader', alignment: i >= 2 ? 'right' : 'left', color: accent }));
   const rows = model.lines.map((line) => lineRow(line, gross, labels, f));
-  const docRows = [
-    ...model.charges.map((c) => docRow(c, false, gross, f)),
-    ...model.allowances.map((a) => docRow(a, true, gross, f)),
-  ];
+  const docRows = [...model.charges.map((c) => docRow(c, false, gross, f)), ...model.allowances.map((a) => docRow(a, true, gross, f))];
   return {
     margin: [0, 14, 0, 0],
     table: { headerRows: 1, widths: [22, '*', 46, 62, 34, 66], body: [header, ...rows, ...docRows] },
@@ -289,11 +299,9 @@ function payment(model: EInvoiceModel, labels: PdfLabels, f: Formatters): Node {
 
 function meansText(means: PaymentMeans, model: EInvoiceModel, labels: PdfLabels): Node[] {
   if (means.code === '58' && 'iban' in means && means.iban) {
-    const account = [
-      `IBAN ${formatIban(means.iban)}`,
-      means.bic ? `BIC ${means.bic}` : '',
-      means.accountName ?? model.seller.name,
-    ].filter(Boolean);
+    const account = [`IBAN ${formatIban(means.iban)}`, means.bic ? `BIC ${means.bic}` : '', means.accountName ?? model.seller.name].filter(
+      Boolean,
+    );
     return [
       labels.transferTo,
       { text: account.join(' · '), bold: true },
@@ -307,7 +315,10 @@ function meansText(means: PaymentMeans, model: EInvoiceModel, labels: PdfLabels)
 }
 
 function formatIban(iban: string): string {
-  return iban.replace(/\s+/g, '').replace(/(.{4})/g, '$1 ').trim();
+  return iban
+    .replace(/\s+/g, '')
+    .replace(/(.{4})/g, '$1 ')
+    .trim();
 }
 
 function footer(model: EInvoiceModel, labels: PdfLabels, layout: PdfLayout, currentPage: number, pageCount: number): Node {

@@ -154,7 +154,9 @@ describe('Layout preview', () => {
       expect(eInvoiceLayoutPreview.issues, sample).toEqual([]);
       expect(eInvoiceLayoutPreview.pdf, sample).toBeTruthy();
     }
-    const { eInvoiceLayoutPreview } = await adminClient.query(LAYOUT_PREVIEW, { input: { seller, payment, sample: 'MANY_LINES', language: 'en' } });
+    const { eInvoiceLayoutPreview } = await adminClient.query(LAYOUT_PREVIEW, {
+      input: { seller, payment, sample: 'MANY_LINES', language: 'en' },
+    });
     expect(eInvoiceLayoutPreview.pageCount).toBeGreaterThan(1);
   });
 
@@ -171,7 +173,9 @@ describe('Layout preview', () => {
 
   it('renders an order with the draft layout', async () => {
     const order = await placeOrder(shopClient, { items: [{ sku: 'KAF-500', quantity: 1 }] });
-    const { eInvoiceLayoutPreview } = await adminClient.query(LAYOUT_PREVIEW, { input: { orderId: order.id, layout: { closingText: 'Bye' } } });
+    const { eInvoiceLayoutPreview } = await adminClient.query(LAYOUT_PREVIEW, {
+      input: { orderId: order.id, layout: { closingText: 'Bye' } },
+    });
     expect(eInvoiceLayoutPreview.issues).toEqual([]);
     expect(eInvoiceLayoutPreview.pageCount).toBe(1);
 
@@ -200,13 +204,20 @@ describe('Layout preview', () => {
     expect(eInvoiceLayoutPreview.blocks.find((b: { key: string }) => b.key === 'recipient')).toMatchObject({ page: 1, x: 198, y: 478 });
 
     // a too small address field: clipped in the worst case (error), fitted in the preview of the sample
-    const small = { ...document, blocks: document.blocks.map((b: { key: string }) => (b.key === 'recipient' ? { ...b, frame: { x: 198, y: 478, w: 878, h: 120 } } : b)) };
+    const small = {
+      ...document,
+      blocks: document.blocks.map((b: { key: string }) =>
+        b.key === 'recipient' ? { ...b, frame: { x: 198, y: 478, w: 878, h: 120 } } : b,
+      ),
+    };
     const clipped = (await adminClient.query(LAYOUT_PREVIEW, { input: { layout: { document: small } } })).eInvoiceLayoutPreview;
     expect(clipped.pdf).toBeTruthy();
     expect(clipped.layoutIssues.filter((i: { level: string }) => i.level === 'error')).toEqual([
       expect.objectContaining({ code: 'CLIPPED', blockKey: 'recipient' }),
     ]);
-    expect(await errorOf(adminClient.query(SAVE_LAYOUT, { input: { layout: { document: small } } }))).toContain('does not fit into its frame');
+    expect(await errorOf(adminClient.query(SAVE_LAYOUT, { input: { layout: { document: small } } }))).toContain(
+      'does not fit into its frame',
+    );
   });
 
   it('saves a larger base font: the fixed blocks fit with a reduced font', async () => {
@@ -231,7 +242,9 @@ describe('Layout preview', () => {
     const { eInvoiceLayoutPreview } = await adminClient.query(LAYOUT_PREVIEW, { input: { layout: { document: arial } } });
     expect(eInvoiceLayoutPreview.pdf).toBeTruthy();
     expect(eInvoiceLayoutPreview.layoutIssues).toEqual([expect.objectContaining({ level: 'error', code: 'UNKNOWN_FONT' })]);
-    expect(await errorOf(adminClient.query(SAVE_LAYOUT, { input: { layout: { document: arial } } }))).toContain('"Arial" is not configured');
+    expect(await errorOf(adminClient.query(SAVE_LAYOUT, { input: { layout: { document: arial } } }))).toContain(
+      '"Arial" is not configured',
+    );
   });
 
   it('rejects a layout without the delivery date row', async () => {
@@ -240,16 +253,25 @@ describe('Layout preview', () => {
       ...document,
       blocks: document.blocks.map((b: { key: string }) => (b.key === 'details' ? { ...b, props: { fields: ['number', 'issueDate'] } } : b)),
     };
-    expect(await errorOf(adminClient.query(SAVE_LAYOUT, { input: { layout: { document: noDate } } }))).toContain('No visible block prints: Delivery date');
+    expect(await errorOf(adminClient.query(SAVE_LAYOUT, { input: { layout: { document: noDate } } }))).toContain(
+      'No visible block prints: Delivery date',
+    );
   });
 
   it('saves layout documents and rejects invalid ones', async () => {
     const { eInvoiceDefaultLayout: document } = await adminClient.query(DEFAULT_LAYOUT, { preset: 'DIN_5008_B' });
     expect(document.windowEnvelope).toBe('B');
     const { updateEInvoiceChannelSettings } = await adminClient.query(SAVE_LAYOUT, { input: { layout: { document, introText: 'Hallo' } } });
-    expect(updateEInvoiceChannelSettings.layout).toMatchObject({ introText: 'Hallo', accentColor: '#333333', document: { windowEnvelope: 'B' } });
+    expect(updateEInvoiceChannelSettings.layout).toMatchObject({
+      introText: 'Hallo',
+      accentColor: '#333333',
+      document: { windowEnvelope: 'B' },
+    });
 
-    const hidden = { ...document, blocks: document.blocks.map((b: { type: string }) => (b.type === 'totals' ? { ...b, visible: false } : b)) };
+    const hidden = {
+      ...document,
+      blocks: document.blocks.map((b: { type: string }) => (b.type === 'totals' ? { ...b, visible: false } : b)),
+    };
     expect(await errorOf(adminClient.query(SAVE_LAYOUT, { input: { layout: { document: hidden } } }))).toContain('No visible block prints');
     const broken = { ...document, blocks: [...document.blocks, { ...document.blocks[0] }] };
     expect(await errorOf(adminClient.query(SAVE_LAYOUT, { input: { layout: { document: broken } } }))).toContain('is used twice');

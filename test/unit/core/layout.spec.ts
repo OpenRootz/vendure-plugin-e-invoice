@@ -65,7 +65,15 @@ describe('layout model', () => {
 
   it('drops props that are null (cleared GraphQL fields)', () => {
     const input = JSON.parse(JSON.stringify(defaultLayout()));
-    input.blocks.push({ key: 'img', type: 'image', visible: true, pages: 'first', frame: { x: 0, y: 0, w: 100, h: 100 }, overflow: 'fixed', props: { assetId: null } });
+    input.blocks.push({
+      key: 'img',
+      type: 'image',
+      visible: true,
+      pages: 'first',
+      frame: { x: 0, y: 0, w: 100, h: 100 },
+      overflow: 'fixed',
+      props: { assetId: null },
+    });
     const { layout, issues } = parseLayout(input);
     expect(issues).toEqual([]);
     expect(layout!.blocks.find((b) => b.key === 'img')!.props).toEqual({});
@@ -84,7 +92,9 @@ describe('layout model', () => {
     expect(errors(edit(base, 'introText', { props: { text: 'x'.repeat(2001) } }))).toEqual(['TEXT_TOO_LONG']);
     expect(errors(edit(base, 'introText', { props: { colour: 'red' } }))).toEqual(['UNKNOWN_PROPERTY']);
     expect(errors(edit(base, 'logo', { style: { color: 'red' } }))).toEqual(['INVALID_STYLE']);
-    expect(errors({ ...base, blocks: Array.from({ length: 51 }, (_, i) => ({ ...base.blocks[0], key: `b${i}` })) })).toContain('TOO_MANY_BLOCKS');
+    expect(errors({ ...base, blocks: Array.from({ length: 51 }, (_, i) => ({ ...base.blocks[0], key: `b${i}` })) })).toContain(
+      'TOO_MANY_BLOCKS',
+    );
   });
 
   it('migrates v1 settings and keeps the v1 fields as shortcuts', () => {
@@ -151,7 +161,12 @@ describe('layout checks', () => {
     const result = await measure(overlapping, model);
     const logoModel = model;
     expect(checkLayout(overlapping, result.measurement, logoModel).map((i) => i.message)).toEqual([]); // no logo in the input: nothing printed
-    const withLogo = await layoutDocument(overlapping, { model, labels, logo: { svg: '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>' } }, fonts, { fit: false });
+    const withLogo = await layoutDocument(
+      overlapping,
+      { model, labels, logo: { svg: '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>' } },
+      fonts,
+      { fit: false },
+    );
     expect(codes(checkLayout(overlapping, withLogo.measurement, model))).toEqual(['OVERLAP']);
 
     expect(codes(checkLayout({ ...base, windowEnvelope: 'A' }))).toEqual(['NOT_IN_WINDOW', 'NOT_IN_WINDOW']);
@@ -163,11 +178,15 @@ describe('layout checks', () => {
     expect(layoutPreset('din5008B').windowEnvelope).toBe('B');
 
     const parallel = edit(base, 'totals', { anchor: undefined, frame: { x: 1400, y: 848, w: 500, h: 0 } });
-    expect(codes(checkLayout(edit(parallel, 'deliveryAddress', { frame: { x: 198, y: 848, w: 1100, h: 0 } })))).toEqual(['PARALLEL_GROWTH']);
+    expect(codes(checkLayout(edit(parallel, 'deliveryAddress', { frame: { x: 198, y: 848, w: 1100, h: 0 } })))).toEqual([
+      'PARALLEL_GROWTH',
+    ]);
 
     expect(codes(checkLayout({ ...base, theme: { ...base.theme, accentColor: '#ffee00' } }))).toEqual(['LOW_CONTRAST']);
     expect(codes(checkLayout(edit(base, 'footer', { style: { fontSize: 5 } })))).toEqual(['SMALL_FONT']);
-    expect(codes(checkLayout({ ...base, theme: { ...base.theme, font: 'Comic' } }, undefined, undefined, { fonts: ['Roboto'] }))).toEqual(['UNKNOWN_FONT']);
+    expect(codes(checkLayout({ ...base, theme: { ...base.theme, font: 'Comic' } }, undefined, undefined, { fonts: ['Roboto'] }))).toEqual([
+      'UNKNOWN_FONT',
+    ]);
   });
 });
 
@@ -208,7 +227,11 @@ describe('layout engine', () => {
 
   it('starts a second flow chain at its own position', async () => {
     const model = sample('b2b-net');
-    let layout = edit(defaultLayout(), 'closingText', { anchor: undefined, frame: { x: 198, y: 2560, w: 1704, h: 0 }, props: { text: 'Gruß' } });
+    let layout = edit(defaultLayout(), 'closingText', {
+      anchor: undefined,
+      frame: { x: 198, y: 2560, w: 1704, h: 0 },
+      props: { text: 'Gruß' },
+    });
     layout = edit(layout, 'exemptionNotes', {});
     const result = await measure(layout, model);
     const closing = result.measurement.boxes.find((b) => b.key === 'closingText')!;
@@ -246,7 +269,16 @@ describe('exotic layouts', () => {
       continuation: { top: 400, bottom: 339 },
       blocks: [
         ...defaultLayout().blocks,
-        { key: 'followHeader', type: 'customText', visible: true, pages: 'following', overflow: 'fixed', frame: { x: 198, y: 169, w: 1704, h: 150 }, props: { text: 'Rechnung {number} vom {issueDate}' }, style: { bold: true } },
+        {
+          key: 'followHeader',
+          type: 'customText',
+          visible: true,
+          pages: 'following',
+          overflow: 'fixed',
+          frame: { x: 198, y: 169, w: 1704, h: 150 },
+          props: { text: 'Rechnung {number} vom {issueDate}' },
+          style: { bold: true },
+        },
       ],
     },
   };

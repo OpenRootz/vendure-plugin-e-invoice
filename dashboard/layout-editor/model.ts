@@ -89,7 +89,16 @@ export const BLOCK_LABELS: Record<BlockType, string> = {
   image: 'Image',
 };
 
-export const DETAIL_FIELDS = ['number', 'issueDate', 'deliveryDate', 'orderNumber', 'purchaseOrder', 'buyerReference', 'buyerVatId', 'sellerTaxId'] as const;
+export const DETAIL_FIELDS = [
+  'number',
+  'issueDate',
+  'deliveryDate',
+  'orderNumber',
+  'purchaseOrder',
+  'buyerReference',
+  'buyerVatId',
+  'sellerTaxId',
+] as const;
 export type DetailField = (typeof DETAIL_FIELDS)[number];
 export const DETAIL_LABELS: Record<DetailField, string> = {
   number: 'Invoice number',
@@ -102,7 +111,8 @@ export const DETAIL_LABELS: Record<DetailField, string> = {
   sellerTaxId: 'Seller VAT ID / tax number',
 };
 const DEFAULT_DETAIL_FIELDS: DetailField[] = DETAIL_FIELDS.filter((f) => f !== 'sellerTaxId');
-export const detailFields = (b: Block): DetailField[] => (Array.isArray(b.props?.fields) ? (b.props.fields as DetailField[]) : DEFAULT_DETAIL_FIELDS);
+export const detailFields = (b: Block): DetailField[] =>
+  Array.isArray(b.props?.fields) ? (b.props.fields as DetailField[]) : DEFAULT_DETAIL_FIELDS;
 
 /** Content §14 UStG requires and the blocks that print it (same rules as the server's coverage check). */
 export const MANDATORY: { field: string; label: string }[] = [
@@ -134,7 +144,12 @@ export function blockCoverage(b: Block): string[] {
     case 'exemptionNotes':
       return ['exemption'];
     case 'details': {
-      const map: Partial<Record<DetailField, string>> = { number: 'number', issueDate: 'issueDate', deliveryDate: 'deliveryDate', sellerTaxId: 'sellerTaxId' };
+      const map: Partial<Record<DetailField, string>> = {
+        number: 'number',
+        issueDate: 'issueDate',
+        deliveryDate: 'deliveryDate',
+        sellerTaxId: 'sellerTaxId',
+      };
       return detailFields(b)
         .map((f) => map[f])
         .filter((f): f is string => !!f);
@@ -146,7 +161,9 @@ export function blockCoverage(b: Block): string[] {
 
 /** Mandatory fields for which `block` is the last visible block printing them (it must not be hidden). */
 export function lastCarrierOf(layout: LayoutDocument, block: Block): string[] {
-  return blockCoverage(block).filter((field) => !layout.blocks.some((b) => b.key !== block.key && b.visible && blockCoverage(b).includes(field)));
+  return blockCoverage(block).filter(
+    (field) => !layout.blocks.some((b) => b.key !== block.key && b.visible && blockCoverage(b).includes(field)),
+  );
 }
 
 export const mm = (tenth: number) => Math.round(tenth) / 10;
@@ -154,7 +171,12 @@ export const fromMm = (value: number) => Math.round(value * 10);
 
 /** Whether a fixed block is printed on the given page (flow blocks appear where their content is measured). */
 export function onPage(b: Block, page: number, pageCount: number) {
-  return b.pages === 'all' || (b.pages === 'first' && page === 1) || (b.pages === 'following' && page > 1) || (b.pages === 'last' && page === pageCount);
+  return (
+    b.pages === 'all' ||
+    (b.pages === 'first' && page === 1) ||
+    (b.pages === 'following' && page > 1) ||
+    (b.pages === 'last' && page === pageCount)
+  );
 }
 
 /** True if `target` is (transitively) anchored to `block`, so anchoring `block` to it would form a cycle. */
@@ -182,7 +204,9 @@ export function removeBlock(layout: LayoutDocument, key: string): LayoutDocument
     ...layout,
     blocks: layout.blocks
       .filter((b) => b.key !== key)
-      .map((b) => (b.anchor?.to === key ? { ...b, anchor: removed?.anchor ? { ...removed.anchor } : undefined, frame: { ...b.frame } } : b)),
+      .map((b) =>
+        b.anchor?.to === key ? { ...b, anchor: removed?.anchor ? { ...removed.anchor } : undefined, frame: { ...b.frame } } : b,
+      ),
   };
 }
 

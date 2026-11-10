@@ -167,9 +167,7 @@ describe('Downloads and Shop API', () => {
 
     const xml = await adminClient.query(GUEST_LINK, { invoiceId: invoice.id, format: 'XRECHNUNG_CII' });
     expect((await get(xml.createEInvoiceGuestLink)).body.toString()).toContain('04011000-1234512345-06');
-    const missing = await adminClient
-      .query(GUEST_LINK, { invoiceId: invoice.id, format: 'XRECHNUNG_UBL' })
-      .catch((e: Error) => e.message);
+    const missing = await adminClient.query(GUEST_LINK, { invoiceId: invoice.id, format: 'XRECHNUNG_UBL' }).catch((e: Error) => e.message);
     expect(missing).toContain('has no XRECHNUNG_UBL file');
   });
 
@@ -181,9 +179,7 @@ describe('Downloads and Shop API', () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toBe('application/zip');
     const entries = unzipSync(res.body);
-    expect(Object.keys(entries).sort()).toEqual(
-      [...invoice.files.map((f) => f.fileName), `${secondInvoice.number}.pdf`].sort(),
-    );
+    expect(Object.keys(entries).sort()).toEqual([...invoice.files.map((f) => f.fileName), `${secondInvoice.number}.pdf`].sort());
     expect(sha256(Buffer.from(entries[invoice.files[0].fileName]))).toBe(invoice.files[0].sha256);
 
     const ids = new URL(createEInvoiceZipLink).searchParams.get('ids')!.split(',');
@@ -230,6 +226,5 @@ describe('Downloads and Shop API', () => {
     const res = await get(url);
     expect(res.status).toBe(200);
     expect(res.body.subarray(0, 5).toString()).toBe('%PDF-');
-
   });
 });

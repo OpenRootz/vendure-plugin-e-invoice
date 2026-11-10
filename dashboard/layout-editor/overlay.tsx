@@ -32,7 +32,8 @@ export function flowBlocks(layout: LayoutDocument): Set<string> {
 function snap(value: number, candidates: number[], free: boolean): { value: number; snapped: boolean } {
   if (free) return { value: Math.round(value), snapped: false };
   let best: number | undefined;
-  for (const c of candidates) if (Math.abs(c - value) <= SNAP && (best === undefined || Math.abs(c - value) < Math.abs(best - value))) best = c;
+  for (const c of candidates)
+    if (Math.abs(c - value) <= SNAP && (best === undefined || Math.abs(c - value) < Math.abs(best - value))) best = c;
   return best !== undefined ? { value: best, snapped: true } : { value: Math.round(value / GRID) * GRID, snapped: false };
 }
 
@@ -69,7 +70,13 @@ export function LayoutOverlay({ layout, boxes, page, pageCount, scale, selected,
     const others = rects.filter((r) => r.block.key !== key && r.block.visible);
     return {
       xs: [ml, PAGE.w - mr, ...others.flatMap((r) => [r.rect.x, r.rect.x + r.rect.w])],
-      ys: [mt, PAGE.h - mb, layout.continuation.top, PAGE.h - layout.continuation.bottom, ...others.flatMap((r) => [r.rect.y, r.rect.y + r.rect.h])],
+      ys: [
+        mt,
+        PAGE.h - mb,
+        layout.continuation.top,
+        PAGE.h - layout.continuation.bottom,
+        ...others.flatMap((r) => [r.rect.y, r.rect.y + r.rect.h]),
+      ],
     };
   };
 
@@ -122,8 +129,17 @@ export function LayoutOverlay({ layout, boxes, page, pageCount, scale, selected,
     const r = drag.rect;
     const moved = Math.abs(r.y - s.rect.y) > 5;
     // A resized grow block keeps its height as minimum height; flow blocks keep their content height
-    const h = s.handle === 'move' ? block.frame.h : flow.has(block.key) && block.overflow === 'grow' && !/[ns]/.test(s.handle) ? block.frame.h : r.h;
-    let next = updateBlock(layout, block.key, (b) => ({ ...b, frame: { x: r.x, y: r.y, w: r.w, h }, anchor: moved ? undefined : b.anchor }));
+    const h =
+      s.handle === 'move'
+        ? block.frame.h
+        : flow.has(block.key) && block.overflow === 'grow' && !/[ns]/.test(s.handle)
+          ? block.frame.h
+          : r.h;
+    let next = updateBlock(layout, block.key, (b) => ({
+      ...b,
+      frame: { x: r.x, y: r.y, w: r.w, h },
+      anchor: moved ? undefined : b.anchor,
+    }));
     if (moved) {
       // Snap anchor: dropped right below a growing block → follows it
       const target = rects.find(
@@ -138,7 +154,10 @@ export function LayoutOverlay({ layout, boxes, page, pageCount, scale, selected,
           !layout.blocks.some((b) => b.anchor?.to === o.block.key && b.key !== block.key) &&
           !dependsOn(layout, o.block.key, block.key),
       );
-      if (target) next = updateBlock(next, block.key, { anchor: { to: target.block.key, gap: Math.max(0, Math.round(r.y - (target.rect.y + target.rect.h))) } });
+      if (target)
+        next = updateBlock(next, block.key, {
+          anchor: { to: target.block.key, gap: Math.max(0, Math.round(r.y - (target.rect.y + target.rect.h))) },
+        });
     }
     setDrag(undefined);
     onChange(next);
@@ -166,12 +185,16 @@ export function LayoutOverlay({ layout, boxes, page, pageCount, scale, selected,
         title="End of the flow area"
       />
       {win !== undefined && (
-        <div className="pointer-events-none absolute border border-amber-500/70" style={{ left: px(200), top: px(win), width: px(850), height: px(450) }} />
+        <div
+          className="pointer-events-none absolute border border-amber-500/70"
+          style={{ left: px(200), top: px(win), width: px(850), height: px(450) }}
+        />
       )}
       {rects.map(({ block, rect }) => {
         const isSelected = block.key === selected;
         const issue = issueOf(block.key);
-        const color = issue?.level === 'error' ? 'border-red-500' : issue ? 'border-amber-500' : isSelected ? 'border-primary' : 'border-sky-500/50';
+        const color =
+          issue?.level === 'error' ? 'border-red-500' : issue ? 'border-amber-500' : isSelected ? 'border-primary' : 'border-sky-500/50';
         return (
           <div
             key={block.key}

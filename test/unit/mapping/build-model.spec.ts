@@ -72,14 +72,28 @@ function order(spec: OrderSpec): Order {
           listPriceIncludesTax: gross,
           taxLines: [{ description: 'shipping tax', taxRate: spec.shipping.rate ?? 19 }],
           adjustments: spec.shipping.discount
-            ? [{ amount: -spec.shipping.discount, adjustmentSource: 'PROMOTION:1', description: 'Free shipping', type: AdjustmentType.PROMOTION }]
+            ? [
+                {
+                  amount: -spec.shipping.discount,
+                  adjustmentSource: 'PROMOTION:1',
+                  description: 'Free shipping',
+                  type: AdjustmentType.PROMOTION,
+                },
+              ]
             : [],
           shippingMethod: { name: 'DHL Paket' } as never,
         }),
       ]
     : [];
   const surcharges = (spec.surcharges ?? []).map(
-    (s) => new Surcharge({ listPrice: s.price, listPriceIncludesTax: gross, description: s.description, sku: '', taxLines: [{ description: 'tax', taxRate: 19 }] }),
+    (s) =>
+      new Surcharge({
+        listPrice: s.price,
+        listPriceIncludesTax: gross,
+        description: s.description,
+        sku: '',
+        taxLines: [{ description: 'tax', taxRate: 19 }],
+      }),
   );
   const o = new Order({
     id: 1,
@@ -162,9 +176,15 @@ describe('buildModel', () => {
       ['KAF-500', '2', 1000, 2000, '19', 380],
       ['BOOK-1', '1', 1869, 1869, '7', 131],
     ]);
-    expect(m.charges).toEqual([{ amount: 490, reason: 'DHL Paket', reasonCode: 'FC', vat: { code: 'S', rate: '19' }, vendureTaxAmount: 93 }]);
+    expect(m.charges).toEqual([
+      { amount: 490, reason: 'DHL Paket', reasonCode: 'FC', vat: { code: 'S', rate: '19' }, vendureTaxAmount: 93 },
+    ]);
     expect(m.salesOrderReference).toBe('ABC123');
-    expect(m.buyer).toMatchObject({ name: 'Beispiel Kunde AG', isBusiness: true, electronicAddress: { scheme: 'EM', value: 'einkauf@example.org' } });
+    expect(m.buyer).toMatchObject({
+      name: 'Beispiel Kunde AG',
+      isBusiness: true,
+      electronicAddress: { scheme: 'EM', value: 'einkauf@example.org' },
+    });
     expect(m.payment).toMatchObject({ prepaidAmount: o.totalWithTax, means: [{ code: '48' }] });
     expect(m.payment.terms).toBeUndefined();
     expect(m.totals?.duePayable).toBe(0);
@@ -175,18 +195,34 @@ describe('buildModel', () => {
     const o = order({
       lines: [
         { sku: 'KAF-500', price: 1000, qty: 2, promotion: { amount: 200, description: '10 % Herbstrabatt' } },
-        { sku: 'NB-A5', price: 335, qty: 1, promotion: { amount: 34, description: 'Bestellrabatt', type: AdjustmentType.DISTRIBUTED_ORDER_PROMOTION } },
+        {
+          sku: 'NB-A5',
+          price: 335,
+          qty: 1,
+          promotion: { amount: 34, description: 'Bestellrabatt', type: AdjustmentType.DISTRIBUTED_ORDER_PROMOTION },
+        },
       ],
     });
     const m = await build(o);
-    expect(m.lines[0]).toMatchObject({ netUnitPrice: 1000, netAmount: 1800, allowances: [{ amount: 200, reason: '10 % Herbstrabatt' }], charges: [] });
+    expect(m.lines[0]).toMatchObject({
+      netUnitPrice: 1000,
+      netAmount: 1800,
+      allowances: [{ amount: 200, reason: '10 % Herbstrabatt' }],
+      charges: [],
+    });
     expect(m.lines[1]).toMatchObject({ netUnitPrice: 335, netAmount: 301, allowances: [{ amount: 34, reason: 'Bestellrabatt' }] });
     expectValid(m);
   });
 
   it('keeps line amounts exact in gross-price channels with a rounding allowance or charge', async () => {
     // 3.99 gross → 3.3529… net: unit price 3.35, but the line price for 3 pieces is round(10.0588) = 10.06
-    const o = order({ gross: true, lines: [{ sku: 'NB-A5', price: 399, qty: 3 }, { sku: 'KS-3', price: 499, qty: 1 }] });
+    const o = order({
+      gross: true,
+      lines: [
+        { sku: 'NB-A5', price: 399, qty: 3 },
+        { sku: 'KS-3', price: 499, qty: 1 },
+      ],
+    });
     const m = await build(o, { pricesIncludeTax: true, priceDisplay: 'gross' });
     expect(m.lines[0]).toMatchObject({
       netUnitPrice: 335,
@@ -228,7 +264,12 @@ describe('buildModel', () => {
   });
 
   it('skips cancelled lines (quantity 0)', async () => {
-    const o = order({ lines: [{ sku: 'KAF-500', price: 1000, qty: 1 }, { sku: 'NB-A5', price: 335, qty: 0 }] });
+    const o = order({
+      lines: [
+        { sku: 'KAF-500', price: 1000, qty: 1 },
+        { sku: 'NB-A5', price: 335, qty: 0 },
+      ],
+    });
     const m = await build(o);
     expect(m.lines.map((l) => l.sellerItemId)).toEqual(['KAF-500']);
   });
@@ -292,7 +333,15 @@ describe('DefaultBuyerDataStrategy', () => {
   it('adds a delivery address only when it differs from the billing address', async () => {
     const b = await strategy.getBuyer(
       {} as never,
-      base({ shippingAddress: { fullName: 'Lager', streetLine1: 'Lagerstraße 12', postalCode: '85748', city: 'Garching', countryCode: 'DE' } as never }),
+      base({
+        shippingAddress: {
+          fullName: 'Lager',
+          streetLine1: 'Lagerstraße 12',
+          postalCode: '85748',
+          city: 'Garching',
+          countryCode: 'DE',
+        } as never,
+      }),
     );
     expect(b.delivery).toEqual({ name: 'Lager', address: expect.objectContaining({ line1: 'Lagerstraße 12', city: 'Garching' }) });
   });

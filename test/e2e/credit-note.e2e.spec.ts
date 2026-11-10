@@ -215,7 +215,13 @@ describe('Credit notes', () => {
       const { createEInvoiceCreditNote } = await adminClient.query(CREATE_CREDIT_NOTE, {
         input: { invoiceId: invoice.id, lines: [{ orderLineId: coffee.id, quantity: 1 }], note: 'Retoure 1 × Kaffee' },
       });
-      expect(createEInvoiceCreditNote).toMatchObject({ status: 'PENDING', reason: 'manual', number: gs(2), totalNet: 1000, totalWithTax: 1190 });
+      expect(createEInvoiceCreditNote).toMatchObject({
+        status: 'PENDING',
+        reason: 'manual',
+        number: gs(2),
+        totalNet: 1000,
+        totalWithTax: 1190,
+      });
       await waitForInvoices(adminClient, order.id, settled(3));
       const xml = extractFacturX((await readFiles(server, gs(2))).zugferd);
       expect(xml).toContain('<ram:Content>Retoure 1 × Kaffee</ram:Content>');
