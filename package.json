@@ -1,6 +1,6 @@
 {
   "name": "@openrootz/vendure-plugin-e-invoice",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "EN 16931 e-invoicing for Vendure: ZUGFeRD/Factur-X (PDF/A-3) and XRechnung (CII/UBL)",
   "license": "MIT",
   "author": "openrootz",
