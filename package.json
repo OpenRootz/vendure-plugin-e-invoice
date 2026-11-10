@@ -4,6 +4,10 @@
   "description": "EN 16931 e-invoicing for Vendure: ZUGFeRD/Factur-X (PDF/A-3) and XRechnung (CII/UBL)",
   "license": "MIT",
   "author": "openrootz",
+  "homepage": "https://github.com/OpenRootz/vendure-plugin-e-invoice#readme",
+  "bugs": {
+    "url": "https://github.com/OpenRootz/vendure-plugin-e-invoice/issues"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/OpenRootz/vendure-plugin-e-invoice.git"
@@ -12,10 +16,16 @@
     "vendure",
     "vendure-plugin",
     "e-invoice",
+    "e-invoicing",
+    "e-rechnung",
+    "invoice",
     "zugferd",
     "factur-x",
     "xrechnung",
-    "en16931"
+    "en16931",
+    "cii",
+    "ubl",
+    "pdf-a-3"
   ],
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
