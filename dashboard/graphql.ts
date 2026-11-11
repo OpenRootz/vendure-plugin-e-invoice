@@ -198,6 +198,10 @@ export const retryDocument = doc<{ retryEInvoice: EInvoiceRow | null }, { id: st
       id
       status
       number
+      issues {
+        code
+        message
+      }
     }
   }
 `);
@@ -217,6 +221,10 @@ export const cancelAndReissueDocument = doc<{ cancelAndReissueEInvoice: EInvoice
       id
       status
       number
+      issues {
+        code
+        message
+      }
     }
   }
 `);

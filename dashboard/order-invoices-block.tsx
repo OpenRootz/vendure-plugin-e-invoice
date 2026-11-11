@@ -28,6 +28,7 @@ import { CreditNoteDialog } from './credit-note-dialog';
 import {
   cancelAndReissueDocument,
   createInvoiceDocument,
+  EInvoiceIssue,
   EInvoiceRow,
   guestLinkDocument,
   orderEInvoicesDocument,
@@ -35,6 +36,8 @@ import {
   retryDocument,
   voidDocument,
 } from './graphql';
+
+type Outcome = Pick<EInvoiceRow, 'status'> & { issues?: Pick<EInvoiceIssue, 'message'>[] };
 
 /** Invoices and credit notes of an order, with downloads and actions. Shown on the order detail page. */
 export function OrderInvoicesBlock({ orderId }: { orderId: string }) {
@@ -54,10 +57,20 @@ export function OrderInvoicesBlock({ orderId }: { orderId: string }) {
   const [confirmReissue, setConfirmReissue] = useState<EInvoiceRow | undefined>();
 
   const refresh = () => queryClient.invalidateQueries({ queryKey });
-  const run = (success: string, fn: () => Promise<unknown>) =>
+  /**
+   * Runs an action; a resulting BLOCKED document is reported as a warning, not as a success.
+   * `null` means the document was no longer needed and has been removed (retry).
+   */
+  const run = (success: string, fn: () => Promise<Outcome | null | void>) =>
     fn()
-      .then(() => {
-        toast.success(success);
+      .then((result) => {
+        if (result === null) {
+          toast.success('Nothing left to retry: the document is no longer needed and has been removed');
+        } else if (result?.status === 'BLOCKED') {
+          toast.warning('The invoice is blocked', { description: result.issues?.map((i) => i.message).join('\n') });
+        } else {
+          toast.success(success);
+        }
         return refresh();
       })
       .catch((e) => toast.error('Action failed', { description: errorMessage(e) }));
@@ -149,21 +162,25 @@ export function OrderInvoicesBlock({ orderId }: { orderId: string }) {
                           Copy guest link
                         </Button>
                       )}
-                      {canCreate && inv.type === 'INVOICE' && inv.number && inv.status !== 'VOID' && inv.remainingAmount > 0 && (
-                        <>
-                          <Button size="xs" variant="outline" onClick={() => setCreditFor(inv.id)}>
-                            Credit note…
-                          </Button>
-                          <Button size="xs" variant="outline" onClick={() => setConfirmReissue(inv)}>
-                            Cancel & reissue
-                          </Button>
-                        </>
-                      )}
+                      {canCreate &&
+                        inv.type === 'INVOICE' &&
+                        inv.number &&
+                        ['ISSUED', 'FAILED'].includes(inv.status) &&
+                        inv.remainingAmount > 0 && (
+                          <>
+                            <Button size="xs" variant="outline" onClick={() => setCreditFor(inv.id)}>
+                              Credit note…
+                            </Button>
+                            <Button size="xs" variant="outline" onClick={() => setConfirmReissue(inv)}>
+                              Cancel & reissue
+                            </Button>
+                          </>
+                        )}
                       {canUpdate && (inv.status === 'BLOCKED' || inv.status === 'FAILED') && (
                         <Button
                           size="xs"
                           variant="outline"
-                          onClick={() => run('Retry started', () => api.mutate(retryDocument, { id: inv.id }))}
+                          onClick={() => run('Retry started', async () => (await api.mutate(retryDocument, { id: inv.id })).retryEInvoice)}
                         >
                           Retry
                         </Button>
@@ -193,7 +210,10 @@ export function OrderInvoicesBlock({ orderId }: { orderId: string }) {
       )}
       <div className="flex gap-2">
         {canCreate && !cancelled && !hasOpenInvoice && !hasBlocked && (
-          <Button size="sm" onClick={() => run('Invoice created', () => api.mutate(createInvoiceDocument, { orderId }))}>
+          <Button
+            size="sm"
+            onClick={() => run('Invoice created', async () => (await api.mutate(createInvoiceDocument, { orderId })).createEInvoice)}
+          >
             Create invoice
           </Button>
         )}
@@ -230,7 +250,10 @@ export function OrderInvoicesBlock({ orderId }: { orderId: string }) {
                 onClick={() => {
                   const id = confirmReissue.id;
                   setConfirmReissue(undefined);
-                  void run('Invoice reissued', () => api.mutate(cancelAndReissueDocument, { invoiceId: id }));
+                  void run(
+                    'Invoice reissued',
+                    async () => (await api.mutate(cancelAndReissueDocument, { invoiceId: id })).cancelAndReissueEInvoice,
+                  );
                 }}
               >
                 Cancel & reissue
