@@ -82,4 +82,35 @@ async function useGermanChannel(adminClient: SimpleGraphQLClient) {
     },
   );
   if (updateChannel.message) throw new Error(updateChannel.message);
+  await reindexSearch(adminClient);
+}
+
+/** The search index was built during seeding in English; without a reindex the German dashboard finds nothing. */
+async function reindexSearch(adminClient: SimpleGraphQLClient) {
+  const { reindex } = await adminClient.query(gql`
+    mutation {
+      reindex {
+        id
+      }
+    }
+  `);
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const { job } = await adminClient.query(
+      gql`
+        query ($id: ID!) {
+          job(jobId: $id) {
+            state
+            error
+          }
+        }
+      `,
+      { id: reindex.id },
+    );
+    if (job.state === 'COMPLETED') return;
+    if (job.state === 'FAILED' || job.state === 'CANCELLED') {
+      throw new Error(`Search reindex ${job.state}: ${JSON.stringify(job.error)}`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error('Search reindex did not finish in time');
 }
