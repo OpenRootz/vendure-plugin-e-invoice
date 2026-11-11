@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { calculate, checkModel, toCii, toUbl, VatCategory } from '../../../src/core';
 import { addDays, buildModel, BuildModelInput, isoDateInZone, rateToDecimal } from '../../../src/mapping/build-model';
-import { categoryFromTaxRate } from '../../../src/mapping/order-model.mapper';
+import { categoryFromTaxRate, sortOrderRelations } from '../../../src/mapping/order-model.mapper';
 import { DefaultBuyerDataStrategy } from '../../../src/strategies/buyer-data-strategy';
 import { SellerData } from '../../../src/strategies/types';
 
@@ -276,6 +276,23 @@ describe('buildModel', () => {
 });
 
 describe('mapping helpers', () => {
+  it('puts the loaded order relations in a fixed order, lines as Vendure shows them', () => {
+    const at = (s: number) => new Date(Date.UTC(2026, 10, 11, 10, 0, s));
+    const line = (id: number, created: number, variant: number) => new OrderLine({ id, createdAt: at(created), productVariantId: variant });
+    const o = new Order({
+      // as a database may return them
+      lines: [line(4, 2, 1), line(3, 1, 9), line(2, 1, 5), line(1, 1, 5)],
+      shippingLines: [new ShippingLine({ id: 2, createdAt: at(0) }), new ShippingLine({ id: 1, createdAt: at(0) })],
+      surcharges: [new Surcharge({ id: 6, createdAt: at(5) }), new Surcharge({ id: 5, createdAt: at(4) })],
+      payments: [new Payment({ id: 8, createdAt: at(9) }), new Payment({ id: 7, createdAt: at(3) })],
+    });
+    sortOrderRelations(o);
+    expect(o.lines.map((l) => l.id)).toEqual([1, 2, 3, 4]);
+    expect(o.shippingLines.map((l) => l.id)).toEqual([1, 2]);
+    expect(o.surcharges.map((s) => s.id)).toEqual([5, 6]);
+    expect(o.payments.map((p) => p.id)).toEqual([7, 8]);
+  });
+
   it('derives the VAT category from the tax rate custom fields', () => {
     expect(categoryFromTaxRate(19, undefined)).toEqual({ code: 'S', rate: '19' });
     expect(categoryFromTaxRate(0, undefined)).toEqual({ code: 'S', rate: '0' });
