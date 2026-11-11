@@ -32,6 +32,9 @@ pnpm db:up && pnpm dev      # http://localhost:3050/dashboard, superadmin / supe
 TEST_DB=sqljs pnpm dev      # the same without Docker
 ```
 
+The dev server starts with a fresh database each time: a German shop in EUR with sample products, customers and
+tax rates. Uploaded assets are kept in `test/__output__/assets`.
+
 Please use pnpm; do not commit `package-lock.json` or `yarn.lock`.
 
 ## Project layout

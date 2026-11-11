@@ -10,11 +10,15 @@ First release.
   (BLOCKED invoices with explanations and retry)
 - Gap-free numbering with a row-locked counter per sequence; number format via `InvoiceNumberStrategy`
 - Credit notes for settled refunds (amount-only refunds split across the VAT rates), cancellations and order
-  modifications; manual credit notes per line, for shipping, a free amount or a full reversal; cancel and reissue
+  modifications; manual credit notes per line, for shipping, a free amount or a full reversal; cancel and reissue.
+  `EInvoice.reason` tells why a document was created (`auto`, `manual`, `refund`, `cancellation`, `modification`,
+  `reissue`)
 - PDF with a built-in German/English template, logo, accent color and texts from the channel settings, or a
   custom pdfmake layout via `InvoicePdfStrategy`
 - Admin API: invoice list, preview, setup status, retry, void, settings; Shop API: issued documents of the
   customer's orders
+- Permissions `CreateEInvoice`, `ReadEInvoice` and `UpdateEInvoice`, with descriptions for the role editor; there
+  is no delete permission, as issued documents are never deleted
 - Signed, time-limited download links, guest links and ZIP export; files are checked against their SHA-256
 - Optional runtime validation (`KositHttpValidator`, report or enforce)
 - Storage in the database (default) or a local directory; other storage through a custom `InvoiceStorageStrategy`
