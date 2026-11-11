@@ -1,34 +1,12 @@
 import { useRef, useState } from 'react';
 
-import { Block, BlockBox, BLOCK_LABELS, dependsOn, Frame, LayoutDocument, LayoutIssue, onPage, PAGE, updateBlock } from './model';
+import { displayRect, flowBlocks, MIN_SIZE } from './geometry';
+import { Block, BlockBox, BLOCK_LABELS, dependsOn, Frame, LayoutDocument, LayoutIssue, PAGE, updateBlock } from './model';
 
 type Handle = 'move' | 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
 const HANDLES: Exclude<Handle, 'move'>[] = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'];
 const SNAP = 20; // 2 mm
 const GRID = 10; // 1 mm
-const MIN_SIZE = 30;
-
-/** Where a block is drawn on the page: its measured box, else its frame (fixed blocks, empty flow blocks). */
-export function displayRect(block: Block, boxes: BlockBox[], page: number, pageCount: number, flow: Set<string>): Frame | undefined {
-  const box = boxes.find((b) => b.key === block.key && b.page === page);
-  if (box) return { x: box.x, y: box.y, w: box.w, h: Math.max(box.h, block.frame.h) };
-  const shown = flow.has(block.key) ? page === 1 : onPage(block, page, pageCount);
-  return shown ? { ...block.frame, h: Math.max(block.frame.h, MIN_SIZE) } : undefined;
-}
-
-/** Blocks that grow or are anchored to a growing block (they are laid out in the flow). */
-export function flowBlocks(layout: LayoutDocument): Set<string> {
-  const byKey = new Map(layout.blocks.map((b) => [b.key, b]));
-  const flow = new Set<string>();
-  const check = (b: Block, depth = 0): boolean => {
-    if (b.overflow === 'grow') return true;
-    const target = b.anchor && byKey.get(b.anchor.to);
-    return !!target && depth < 60 && check(target, depth + 1);
-  };
-  for (const b of layout.blocks) if (check(b)) flow.add(b.key);
-  return flow;
-}
-
 function snap(value: number, candidates: number[], free: boolean): { value: number; snapped: boolean } {
   if (free) return { value: Math.round(value), snapped: false };
   let best: number | undefined;
@@ -60,8 +38,9 @@ export function LayoutOverlay({ layout, boxes, page, pageCount, scale, selected,
   const [drag, setDrag] = useState<{ key: string; rect: Frame } | undefined>();
   const start = useRef<{ key: string; handle: Handle; px: number; py: number; rect: Frame } | undefined>(undefined);
   const flow = flowBlocks(layout);
+  const byKey = new Map(layout.blocks.map((b) => [b.key, b]));
   const rects = layout.blocks
-    .map((b) => ({ block: b, rect: drag?.key === b.key ? drag.rect : displayRect(b, boxes, page, pageCount, flow) }))
+    .map((b) => ({ block: b, rect: drag?.key === b.key ? drag.rect : displayRect(b, boxes, page, pageCount, flow, byKey) }))
     .filter((r): r is { block: Block; rect: Frame } => !!r.rect);
   const px = (v: number) => v * scale;
   const [mt, mr, mb, ml] = layout.page.margins;
