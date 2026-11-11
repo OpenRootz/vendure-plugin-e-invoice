@@ -4,6 +4,7 @@
 // Set TEST_DB=sqljs to run without Docker.
 process.env.TEST_DB ??= 'postgres';
 
+import { AssetServerPlugin } from '@vendure/asset-server-plugin';
 import { DefaultLogger, DefaultSearchPlugin, LogLevel } from '@vendure/core';
 import { DashboardPlugin } from '@vendure/dashboard/plugin';
 import fs from 'fs';
@@ -18,6 +19,8 @@ import { createConfig, fixtures } from './helpers';
   const config = createConfig({}, { logger: new DefaultLogger({ level: LogLevel.Info }) });
   // The dashboard's global search and product lists need a search plugin
   config.plugins.push(DefaultSearchPlugin.init({ bufferUpdates: false }));
+  // Real asset storage (the test config keeps no files), so logos can be uploaded and rendered
+  config.plugins.push(AssetServerPlugin.init({ route: 'assets', assetUploadDir: path.join(__dirname, '__output__/assets') }));
   const dashboardDir = path.join(__dirname, '__output__/dashboard');
   if (fs.existsSync(path.join(dashboardDir, 'index.html'))) {
     config.plugins.push(DashboardPlugin.init({ route: 'dashboard', appDir: dashboardDir }));
