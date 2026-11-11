@@ -250,6 +250,31 @@ describe('layout engine', () => {
     expect(a.measurement.pageCount).toBeGreaterThan(1);
     expect(a.measurement.boxes.filter((x) => x.key === 'footer').map((x) => x.page)).toEqual([1, 2, 3].slice(0, a.measurement.pageCount));
   });
+
+  it('keeps the blocks after line items that break across pages inside their frames', async () => {
+    // pdfmake leaves the available width too large after a table breaks across pages (see compileLayout):
+    // the amounts of the totals ended up beyond the page edge
+    const layout = defaultLayout();
+    const { definition, measurement } = await measure(layout, sample('many-lines'));
+    const totals = layout.blocks.find((b) => b.key === 'totals')!;
+    const cells: { text: string; id?: string }[] = [];
+    const visit = (node: unknown): void => {
+      if (!node || typeof node !== 'object') return;
+      const table = (node as { table?: { body: { text: string }[][] } }).table;
+      if (table?.body[0]?.[0]?.text === labels.totalNet) cells.push(...table.body.map((row) => row[1]));
+      Object.values(node).forEach(visit);
+    };
+    visit(definition.content);
+    expect(cells.length).toBeGreaterThan(2);
+    cells.forEach((cell, i) => (cell.id = `amount-${i}`));
+    const probe = await probeLayout(definition, fonts);
+    const placed = probe.positions.filter((p) => p.id.startsWith('amount-'));
+    expect(placed).toHaveLength(cells.length);
+    for (const p of placed) {
+      expect(p.page).toBe(measurement.pageCount);
+      expect(p.left).toBeLessThan(toPt(totals.frame.x + totals.frame.w));
+    }
+  });
 });
 
 /** Unusual layouts, written to test/__output__/pdf for veraPDF and Mustang (`pnpm validate`). */

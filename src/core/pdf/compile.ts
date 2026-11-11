@@ -155,8 +155,13 @@ export function compileLayout(
       }
       const x = toPt(block.frame.x);
       const w = toPt(block.frame.w);
+      // The content gets its width explicitly: after a table breaks across pages, pdfmake (0.3.14) leaves the
+      // available width too large by the margins of that block, so '*' columns and text of the following blocks
+      // would run past the frame (e.g. the amounts of the totals off the page). The markers stay outside the
+      // column, so the measured positions are the same as before.
+      const body = node ? [{ columns: [{ width: w, stack: [styled(block, node)] }] }] : [];
       content.push({
-        stack: [marker(block.key, 'start'), ...(node ? [styled(block, node)] : []), marker(block.key, 'end')],
+        stack: [marker(block.key, 'start'), ...body, marker(block.key, 'end')],
         margin: [x, top, Math.max(0, pageW - x - w), node ? (options.pads?.[block.key] ?? 0) : 0],
         ...(block.overflow === 'fixed' ? { unbreakable: true } : {}),
       });
