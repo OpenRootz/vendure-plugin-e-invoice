@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 
 import { displayRect, flowBlocks, MIN_SIZE } from './geometry';
+import { LinkIcon, LockIcon } from './icons';
 import { Block, BlockBox, BLOCK_LABELS, dependsOn, Frame, LayoutDocument, LayoutIssue, PAGE, updateBlock } from './model';
 
 type Handle = 'move' | 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
@@ -187,10 +188,10 @@ export function LayoutOverlay({ layout, boxes, page, pageCount, scale, selected,
             style={{ left: px(rect.x), top: px(rect.y), width: px(rect.w), height: px(rect.h) }}
             onPointerDown={(e) => onPointerDown(e, block, rect, 'move')}
           >
-            <span className="pointer-events-none absolute -top-4 left-0 whitespace-nowrap rounded bg-background/80 px-1 text-[10px] leading-4 text-muted-foreground">
+            <span className="pointer-events-none absolute -top-4 left-0 flex items-center gap-0.5 whitespace-nowrap rounded bg-background/80 px-1 text-[10px] leading-4 text-muted-foreground">
               {BLOCK_LABELS[block.type]}
-              {block.anchor ? ' 🔗' : ''}
-              {locked.has(block.key) ? ' 🔒' : ''}
+              {block.anchor && <LinkIcon className="h-2.5 w-2.5" />}
+              {locked.has(block.key) && <LockIcon className="h-2.5 w-2.5" />}
             </span>
             {isSelected &&
               !locked.has(block.key) &&
