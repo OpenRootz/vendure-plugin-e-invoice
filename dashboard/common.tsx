@@ -89,7 +89,8 @@ export function openPdf(dataUrl: string) {
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
-export const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e));
+/** The message for a toast, without the technical prefix the dashboard's API client adds. */
+export const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e)).replace(/^GraphQL Request Error:\s*/, '');
 
 /** Asks before leaving the page (or closing the tab) while there are unsaved changes. */
 export function UnsavedChangesGuard({ dirty }: { dirty: boolean }) {
