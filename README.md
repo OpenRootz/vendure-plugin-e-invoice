@@ -282,7 +282,9 @@ Roboto (Latin, Greek, Cyrillic). A layout can pick one of them as `theme.font`.
 
 Permissions: `CreateEInvoice`, `ReadEInvoice`, `UpdateEInvoice` (retry, void, settings). `ReadEInvoice` does not
 grant access to orders: `eInvoicePreview`, `eInvoiceLayoutPreview` with an `orderId` and the `EInvoice.order` field
-also need `ReadOrder` (without it, `order` is `null`).
+also need `ReadOrder` (without it, `order` is `null`). Guest links work for days without a login, so
+`createEInvoiceGuestLink` needs `CreateEInvoice`; links that expire after minutes (`downloadUrl`, ZIP) only need
+`ReadEInvoice`.
 
 | Query / mutation                                            |                                                                                                                                                                 |
 | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -298,7 +300,7 @@ also need `ReadOrder` (without it, `order` is `null`).
 | `voidEInvoice(id, reason)`                                  | FAILED → VOID                                                                                                                                                   |
 | `createEInvoiceCreditNote(input)`                           | lines, shipping, amount or full reversal                                                                                                                        |
 | `cancelAndReissueEInvoice(invoiceId)`                       | full credit note + new invoice for the current order                                                                                                            |
-| `createEInvoiceGuestLink(invoiceId, format)`                | download link valid for `guestTtl` (7 days)                                                                                                                     |
+| `createEInvoiceGuestLink(invoiceId, format)`                | download link valid for `guestTtl` (7 days); needs `CreateEInvoice`                                                                                             |
 | `createEInvoiceZipLink(ids)`                                | ZIP of several issued documents                                                                                                                                 |
 
 ### Shop API
@@ -339,7 +341,9 @@ answer `410`, invalid ones `403`. Files are checked against their SHA-256 before
 
 Set `downloadLinks.baseUrl` in production. Without it, links are built from the `Host` header of the request,
 which a client can choose freely unless your proxy overwrites it; the plugin logs a warning the first time this
-happens. It is also required behind a proxy and when creating links outside a request (e.g. in an email handler).
+happens. It is also required behind a proxy, when creating links outside a request (e.g. in a job) and for guest
+links created outside the Admin API (e.g. in an email handler that runs during a Shop API request): these go to
+someone else and must not point to a host the client chose.
 
 The download route is public (the signature is the authorization). It answers with `Cache-Control: private,
 no-store`, `Content-Disposition: attachment`, `X-Content-Type-Options: nosniff`, a sandboxing
@@ -351,7 +355,9 @@ To put a link into your order confirmation email, listen for `EInvoiceIssuedEven
 const url = injector.get(DownloadLinkService).fileLink(event.ctx, event.invoice, 'zugferd', 'guest');
 ```
 
-Rotating `secret` or the channel token invalidates all links.
+Rotating `secret` or the channel token invalidates all links; a single link cannot be revoked. A link is a bearer
+token in its query string: anyone who gets it can download until it expires, and it can end up in proxy access
+logs and browser histories. Keep `guestTtl` as short as your emails allow and keep query strings out of shared logs.
 
 ### Events
 

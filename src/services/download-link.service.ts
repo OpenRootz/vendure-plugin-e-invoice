@@ -37,7 +37,7 @@ export class DownloadLinkService {
     const exp = this.expiry(audience);
     const sig = this.sign(ctx, { kind: 'file', invoiceId: invoice.id, format }, exp);
     const query = new URLSearchParams({ ...(format ? { f: format } : {}), exp: String(exp), sig });
-    return `${this.baseUrl(ctx)}/${DOWNLOAD_ROUTE}/download/${encodeURIComponent(String(invoice.id))}?${query}`;
+    return `${this.baseUrl(ctx, audience)}/${DOWNLOAD_ROUTE}/download/${encodeURIComponent(String(invoice.id))}?${query}`;
   }
 
   /** Link to a ZIP archive with all files of the given invoices. */
@@ -45,7 +45,7 @@ export class DownloadLinkService {
     const exp = this.expiry(audience);
     const sig = this.sign(ctx, { kind: 'zip', invoiceIds }, exp);
     const query = new URLSearchParams({ ids: invoiceIds.join(','), exp: String(exp), sig });
-    return `${this.baseUrl(ctx)}/${DOWNLOAD_ROUTE}/zip?${query}`;
+    return `${this.baseUrl(ctx, audience)}/${DOWNLOAD_ROUTE}/zip?${query}`;
   }
 
   /** Checks a signature against the channel of the documents. */
@@ -72,10 +72,15 @@ export class DownloadLinkService {
     return Math.floor(Date.now() / 1000) + ttl;
   }
 
-  private baseUrl(ctx: RequestContext): string {
+  private baseUrl(ctx: RequestContext, audience: LinkAudience): string {
     if (this.options.downloadLinks.baseUrl) return this.options.downloadLinks.baseUrl;
     const req = ctx.req;
     if (!req) throw new Error('EInvoicePlugin: set `downloadLinks.baseUrl` to create download links outside of an API request');
+    // A guest link goes to someone else (e.g. by email) and lives for days. Outside the Admin API the Host header
+    // comes from whoever sent the request, so such a link could point to a host of their choosing.
+    if (audience === 'guest' && ctx.apiType !== 'admin') {
+      throw new Error('EInvoicePlugin: set `downloadLinks.baseUrl` to create guest links outside of the Admin API');
+    }
     if (!this.warnedAboutHost) {
       this.warnedAboutHost = true;
       Logger.warn(

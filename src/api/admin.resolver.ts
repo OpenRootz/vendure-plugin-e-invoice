@@ -149,8 +149,9 @@ export class EInvoiceAdminResolver {
     return this.invoices.findOne(ctx, invoice.id);
   }
 
+  /** Hands out access without a session for days, so it needs more than reading. */
   @Mutation()
-  @Allow(eInvoicePermission.Read)
+  @Allow(eInvoicePermission.Create)
   async createEInvoiceGuestLink(@Ctx() ctx: RequestContext, @Args() args: { invoiceId: ID; format?: string }) {
     const invoice = await this.invoices.findOne(ctx, args.invoiceId);
     if (invoice?.status !== 'ISSUED') throw new UserInputError(`E-invoice ${args.invoiceId} is not issued`);

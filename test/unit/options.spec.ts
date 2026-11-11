@@ -77,4 +77,15 @@ describe('DownloadLinkService', () => {
     const noBase = new DownloadLinkService(resolveOptions({ secret: 'x'.repeat(32) }));
     expect(() => noBase.fileLink(ctx, { id: 1 })).toThrow(/baseUrl/);
   });
+
+  it('builds guest links from the Host header only in the Admin API', () => {
+    const noBase = new DownloadLinkService(resolveOptions({ secret: 'x'.repeat(32) }));
+    const req = { protocol: 'https', get: () => 'attacker.example' };
+    const shop = { ...ctx, apiType: 'shop', req } as unknown as RequestContext;
+    const admin = { ...ctx, apiType: 'admin', req } as unknown as RequestContext;
+    expect(() => noBase.fileLink(shop, { id: 1 }, 'zugferd', 'guest')).toThrow(/baseUrl/);
+    // The customer's own link goes back to the client that sent the header
+    expect(noBase.fileLink(shop, { id: 1 }, 'zugferd', 'owner')).toMatch(/^https:\/\/attacker\.example\//);
+    expect(noBase.fileLink(admin, { id: 1 }, 'zugferd', 'guest')).toMatch(/^https:\/\/attacker\.example\//);
+  });
 });

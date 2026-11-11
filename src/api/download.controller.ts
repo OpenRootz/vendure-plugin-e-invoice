@@ -61,8 +61,11 @@ export class EInvoiceDownloadController {
       if (invoices.some((i) => String(i.channelId) !== String(channelId))) throw new HttpError(403, 'Invalid signature');
       const ctx = await this.authorize(channelId, { kind: 'zip', invoiceIds: ids }, query);
       const entries: Record<string, Uint8Array> = {};
+      const seen = new Set<string>();
       for (const invoice of invoices) {
-        for (const file of sortFiles(invoice.files)) entries[file.fileName] = await this.read(ctx, file);
+        if (seen.has(String(invoice.id))) continue;
+        seen.add(String(invoice.id));
+        for (const file of sortFiles(invoice.files)) entries[zipEntryName(entries, file.fileName)] = await this.read(ctx, file);
       }
       const date = new Date().toISOString().slice(0, 10);
       return { data: Buffer.from(zipSync(entries, { level: 6 })), fileName: `e-invoices-${date}.zip`, mimeType: 'application/zip' };
@@ -125,6 +128,20 @@ export class EInvoiceDownloadController {
       throw new Error(`Integrity check failed for ${file.fileName}`);
     }
     return data;
+  }
+}
+
+/**
+ * A name not yet used in the archive. Two documents can end up with the same file name (a custom number strategy,
+ * or numbers that only differ in characters the file name replaces); the second one must not overwrite the first.
+ */
+export function zipEntryName(entries: Record<string, unknown>, fileName: string): string {
+  if (!(fileName in entries)) return fileName;
+  const dot = fileName.lastIndexOf('.');
+  const [base, ext] = dot > 0 ? [fileName.slice(0, dot), fileName.slice(dot)] : [fileName, ''];
+  for (let n = 2; ; n++) {
+    const name = `${base} (${n})${ext}`;
+    if (!(name in entries)) return name;
   }
 }
 
