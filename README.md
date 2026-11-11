@@ -280,10 +280,11 @@ Roboto (Latin, Greek, Cyrillic). A layout can pick one of them as `theme.font`.
 
 ### Admin API
 
-Permissions: `CreateEInvoice`, `ReadEInvoice`, `UpdateEInvoice` (retry, void, settings). `ReadEInvoice` does not
-grant access to orders: `eInvoicePreview`, `eInvoiceLayoutPreview` with an `orderId` and the `EInvoice.order` field
-also need `ReadOrder` (without it, `order` is `null`). Guest links work for days without a login, so
-`createEInvoiceGuestLink` needs `CreateEInvoice`; links that expire after minutes (`downloadUrl`, ZIP) only need
+Permissions: `CreateEInvoice` (issue invoices and credit notes), `ReadEInvoice` (view and download), `UpdateEInvoice`
+(retry, void, settings and layout). There is no `DeleteEInvoice`: issued documents are immutable and never deleted.
+`ReadEInvoice` does not grant access to orders: `eInvoicePreview`, `eInvoiceLayoutPreview` with an `orderId` and the
+`EInvoice.order` field also need `ReadOrder` (without it, `order` is `null`). Guest links work for days without a login,
+so `createEInvoiceGuestLink` needs `CreateEInvoice`; links that expire after minutes (`downloadUrl`, ZIP) only need
 `ReadEInvoice`.
 
 `EInvoice.reason` tells why a document was created: `auto` (trigger), `manual` (issued or credited by an admin),
@@ -527,7 +528,7 @@ pnpm typecheck              # plugin and dashboard extension
 pnpm lint                   # ESLint (pnpm lint:fix to fix what can be fixed)
 pnpm format                 # Prettier (pnpm format:check in CI)
 pnpm dashboard:build        # dashboard incl. the extension → test/__output__/dashboard
-pnpm db:up && pnpm dev      # dev server on http://localhost:3050 (/dashboard, superadmin / superadmin)
+pnpm db:up && pnpm dev      # dev server: German shop in EUR on http://localhost:3050 (/dashboard, superadmin / superadmin)
 pnpm validate [dir]         # KoSIT (XRechnung/EN 16931), Mustang (ZUGFeRD), veraPDF (PDF/A-3b)
 pnpm validate test/golden   # validate the XML of all test scenarios
 UPDATE_GOLDEN=1 pnpm test   # regenerate golden files after an intended output change
