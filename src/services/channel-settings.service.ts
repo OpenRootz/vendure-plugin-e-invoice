@@ -7,6 +7,8 @@ import { EInvoiceChannelSettings, LayoutSettings, LegacyLayoutSettings, PaymentS
 import { ResolvedEInvoicePluginOptions } from '../options';
 import { ChannelSettingsSellerStrategy, sellerFromSettings } from '../strategies/seller-data-strategy';
 
+import { encodeEntityId, isStorableId } from './entity-ids';
+
 export interface UpdateChannelSettingsInput {
   enabled?: boolean;
   autoIssue?: boolean;
@@ -81,6 +83,8 @@ export class ChannelSettingsService {
         .map((b) => ({ id: b.props!.assetId as ID, what: `The image of block ${b.key}` })),
     ];
     for (const { id, what } of assets) {
+      // Unknown IDs render without the image (LOGO_NOT_FOUND); malformed ones must not reach the database
+      if (!isStorableId(this.configService, id)) continue;
       const asset = await this.connection.getRepository(ctx, Asset).findOne({ where: { id, channels: { id: ctx.channelId } } });
       if (asset && asset.fileSize > MAX_LOGO_BYTES) problems.push(`${what} is larger than ${MAX_LOGO_BYTES / 1024 / 1024} MB`);
     }
@@ -113,7 +117,7 @@ export class ChannelSettingsService {
     for (const rate of taxRates) {
       const code = rate.customFields?.eInvoiceCategoryCode || undefined;
       // The dashboard links to the tax rate, so the path carries the ID as the API exposes it
-      const path = `taxRate:${this.apiId(rate.id)}`;
+      const path = `taxRate:${encodeEntityId(this.configService, rate.id)}`;
       const zero = Number(rate.value) === 0;
       if (zero && (!code || code === 'S')) {
         issues.push({
@@ -142,13 +146,6 @@ export class ChannelSettingsService {
       }
     }
     return issues;
-  }
-
-  /** An entity ID as the API exposes it (encoded by the configured `EntityIdStrategy`). */
-  private apiId(id: ID): ID {
-    const { entityOptions, entityIdStrategy } = this.configService;
-    const strategy = entityOptions.entityIdStrategy ?? entityIdStrategy;
-    return strategy ? strategy.encodeId(id) : id;
   }
 }
 

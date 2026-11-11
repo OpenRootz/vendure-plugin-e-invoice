@@ -21,6 +21,7 @@ import { EInvoiceFailedEvent, EInvoiceIssuedEvent } from '../events';
 import { ResolvedEInvoicePluginOptions } from '../options';
 
 import { ChannelSettingsService, MAX_LOGO_BYTES } from './channel-settings.service';
+import { isStorableId } from './entity-ids';
 import { supportsRowLocks } from './order-lock';
 
 export interface RenderedFile {
@@ -272,7 +273,9 @@ export class InvoiceRenderService {
    */
   private async loadImage(ctx: RequestContext, assetId: ID, path: string, issues?: RenderedPdf['issues']): Promise<PdfImage | undefined> {
     // Only assets of the current channel, like the asset picker shows them
-    const asset = await this.connection.getRepository(ctx, Asset).findOne({ where: { id: assetId, channels: { id: ctx.channelId } } });
+    const asset = isStorableId(this.configService, assetId)
+      ? await this.connection.getRepository(ctx, Asset).findOne({ where: { id: assetId, channels: { id: ctx.channelId } } })
+      : null;
     const report = (code: string, message: string) => {
       issues?.push({ code, message, path });
       Logger.warn(message, loggerCtx);
