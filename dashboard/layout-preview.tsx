@@ -24,12 +24,13 @@ export const SAMPLES: { value: EInvoiceSample; label: string }[] = [
 
 export interface PreviewOptions {
   sample: EInvoiceSample;
+  /** Empty: the channel language, like the invoices */
   language: string;
   /** Render the latest order instead of sample data */
   useLatestOrder: boolean;
 }
 
-export const DEFAULT_PREVIEW_OPTIONS: PreviewOptions = { sample: 'B2B_NET', language: 'de', useLatestOrder: false };
+export const DEFAULT_PREVIEW_OPTIONS: PreviewOptions = { sample: 'B2B_NET', language: '', useLatestOrder: false };
 
 /**
  * The live preview: re-rendered on the server 500 ms after the last change of the draft. While a new PDF is
@@ -45,7 +46,7 @@ export function useLayoutPreview(draft: Omit<LayoutPreviewInput, 'sample' | 'lan
   const input: LayoutPreviewInput = {
     ...draft,
     sample: options.sample,
-    language: options.language,
+    ...(options.language ? { language: options.language } : {}),
     ...(orderId ? { orderId } : {}),
   };
   const debounced = useDebounced(input);
@@ -105,6 +106,7 @@ export function PreviewToolbar({
         value={options.language}
         onChange={(e) => onChange({ ...options, language: e.target.value })}
       >
+        <option value="">Channel language</option>
         <option value="de">Deutsch</option>
         <option value="en">English</option>
       </select>
