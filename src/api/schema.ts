@@ -69,6 +69,7 @@ export const adminApiExtensions = gql`
     updatedAt: DateTime!
     type: EInvoiceType!
     status: EInvoiceStatus!
+    "auto, manual, refund, cancellation, modification or reissue"
     reason: String!
     number: String
     issueDate: String

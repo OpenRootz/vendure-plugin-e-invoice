@@ -183,8 +183,8 @@ export class InvoiceService implements OnApplicationBootstrap {
       if (latest && !idsAreEqual(latest.id, original.id)) {
         throw new UserInputError(`Invoice ${original.number} has been replaced by ${latest.number}`);
       }
-      const note = await this.creditNotes.credit(txCtx, original, { full: true }, { reason: 'manual', settlement: 'offset' });
-      return [note, await this.issue(txCtx, original.orderId, 'manual')];
+      const note = await this.creditNotes.credit(txCtx, original, { full: true }, { reason: 'reissue', settlement: 'offset' });
+      return [note, await this.issue(txCtx, original.orderId, 'reissue')];
     });
     await this.afterIssue(ctx, docs);
     return docs[1];
