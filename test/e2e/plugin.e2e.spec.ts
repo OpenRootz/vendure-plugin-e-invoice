@@ -31,4 +31,23 @@ describe('EInvoicePlugin (scaffold)', () => {
     const values = taxRates.items.map((t: { value: number }) => t.value);
     expect(values).toEqual(expect.arrayContaining([19, 7, 0]));
   });
+
+  it('registers Create, Read and Update permissions but no DeleteEInvoice', async () => {
+    const { globalSettings } = await adminClient.query(gql`
+      query {
+        globalSettings {
+          serverConfig {
+            permissions {
+              name
+              assignable
+            }
+          }
+        }
+      }
+    `);
+    const names = globalSettings.serverConfig.permissions
+      .map((p: { name: string }) => p.name)
+      .filter((name: string) => name.endsWith('EInvoice'));
+    expect(names).toEqual(['CreateEInvoice', 'ReadEInvoice', 'UpdateEInvoice']);
+  });
 });
