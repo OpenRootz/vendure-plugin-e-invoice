@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { ID, Order, RequestContext, TransactionalConnection, UserInputError } from '@vendure/core';
+import { ConfigService, ID, Order, RequestContext, TransactionalConnection, UserInputError } from '@vendure/core';
 
 import { PLUGIN_INIT_OPTIONS } from '../constants';
 import {
@@ -26,6 +26,7 @@ import { ChannelSettingsSellerStrategy, sellerFromSettings } from '../strategies
 import { SellerData } from '../strategies/types';
 
 import { ChannelSettingsService, compact, SetupIssue } from './channel-settings.service';
+import { decodeEntityId, mapImageAssetIds } from './entity-ids';
 import { InvoiceRenderService } from './invoice-render.service';
 
 /** The layout as the API takes it: the document plus the v1 fields as shortcuts that patch it. */
@@ -76,6 +77,7 @@ export class LayoutPreviewService {
     private mapper: OrderModelMapper,
     private settings: ChannelSettingsService,
     private renderer: InvoiceRenderService,
+    private configService: ConfigService,
   ) {}
 
   async preview(ctx: RequestContext, input: LayoutPreviewInput): Promise<LayoutPreview> {
@@ -87,7 +89,7 @@ export class LayoutPreviewService {
 
     let layout: LayoutSettings = saved.layout;
     if (input.layout) {
-      const resolved = resolveLayoutInput(input.layout);
+      const resolved = this.resolveInput(input.layout);
       if (!resolved.layout) return { ...empty, issues, layoutIssues: resolved.issues };
       layout = resolved.layout;
     }
@@ -157,7 +159,7 @@ export class LayoutPreviewService {
     seller?: SellerSettings | null,
     payment?: PaymentSettings | null,
   ): Promise<LayoutSettings> {
-    const resolved = resolveLayoutInput(input);
+    const resolved = this.resolveInput(input);
     const fail = (issues: LayoutIssue[]) => {
       throw new UserInputError(`Invalid layout: ${issues.map((i) => i.message).join('; ')}`);
     };
@@ -172,6 +174,13 @@ export class LayoutPreviewService {
     ).filter((i) => i.level === 'error');
     if (errors.length) fail(errors);
     return layout;
+  }
+
+  /** {@link resolveLayoutInput} with the image asset IDs of the document decoded to database IDs. */
+  private resolveInput(input: LayoutInput): ReturnType<typeof resolveLayoutInput> {
+    const resolved = resolveLayoutInput(input);
+    if (!resolved.layout) return resolved;
+    return { ...resolved, layout: mapImageAssetIds(resolved.layout, (id) => decodeEntityId(this.configService, id)) };
   }
 
   /**

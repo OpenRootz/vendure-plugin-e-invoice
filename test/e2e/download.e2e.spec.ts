@@ -144,6 +144,9 @@ describe('Downloads and Shop API', () => {
     const url = invoice.files[0].downloadUrl;
     expect((await get(url.replace(/\/download\/\d+\?/, `/download/${encodeURIComponent("1' OR '1'='1")}?`))).status).toBe(404);
     expect((await get(url.replace(/\/download\/\d+\?/, `/download/${'9'.repeat(65)}?`))).status).toBe(404);
+    // IDs that do not fit the integer primary key would make Postgres fail (500 instead of 404)
+    expect((await get(url.replace(/\/download\/\d+\?/, '/download/abc?'))).status).toBe(404);
+    expect((await get(url.replace(/\/download\/\d+\?/, `/download/${'9'.repeat(12)}?`))).status).toBe(404);
     const base = new URL(url).origin;
     // Repeated query parameters arrive as arrays; they must be rejected, not crash the handler
     expect((await get(`${base}/e-invoice/zip?ids[]=1&ids[]=2&exp=1&sig=x`)).status).toBe(400);

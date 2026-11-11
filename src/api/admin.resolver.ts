@@ -1,6 +1,7 @@
 import { Args, Mutation, Parent, Query, ResolveField, Resolver } from '@nestjs/graphql';
 import {
   Allow,
+  ConfigService,
   Ctx,
   ForbiddenError,
   ID,
@@ -17,6 +18,7 @@ import { EInvoiceFormat, LayoutPreset, layoutPreset, SampleKind, v1Fields } from
 import { LayoutSettings } from '../entities';
 import { EInvoice, EInvoiceFile } from '../entities';
 import { ChannelSettingsService, UpdateChannelSettingsInput } from '../services/channel-settings.service';
+import { encodeEntityId, mapImageAssetIds } from '../services/entity-ids';
 import { DownloadLinkService, MAX_ZIP_INVOICES } from '../services/download-link.service';
 import { InvoiceService, ManualCreditNoteInput } from '../services/invoice.service';
 import { LayoutInput, LayoutPreviewInput, LayoutPreviewService } from '../services/layout-preview.service';
@@ -298,9 +300,12 @@ export class EInvoiceOrderResolver {
 /** The stored layout is the v2 document; the v1 fields are derived from it. */
 @Resolver('EInvoiceLayout')
 export class EInvoiceLayoutResolver {
+  constructor(private configService: ConfigService) {}
+
+  /** The image asset IDs inside the document are encoded here; `logoAssetId` is a GraphQL `ID` and encoded anyway. */
   @ResolveField()
   document(@Parent() layout: LayoutSettings) {
-    const { logoAssetId: _logo, ...document } = layout;
+    const { logoAssetId: _logo, ...document } = mapImageAssetIds(layout, (id) => encodeEntityId(this.configService, id));
     return document;
   }
 

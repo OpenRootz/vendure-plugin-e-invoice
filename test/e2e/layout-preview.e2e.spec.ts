@@ -1,6 +1,7 @@
 import { TransactionalConnection } from '@vendure/core';
 import { createTestEnvironment } from '@vendure/testing';
 import gql from 'graphql-tag';
+import path from 'path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { EInvoiceChannelSettings } from '../../src';
@@ -276,6 +277,57 @@ describe('Layout preview', () => {
     const broken = { ...document, blocks: [...document.blocks, { ...document.blocks[0] }] };
     expect(await errorOf(adminClient.query(SAVE_LAYOUT, { input: { layout: { document: broken } } }))).toContain('is used twice');
     expect((await adminClient.query(LAYOUT)).eInvoiceChannelSettings.layout.document.windowEnvelope).toBe('B');
+  });
+
+  it('decodes the asset IDs of image blocks and encodes them again when read', async () => {
+    const { createAssets } = await adminClient.fileUploadMutation({
+      mutation: gql`
+        mutation CreateAssets($input: [CreateAssetInput!]!) {
+          createAssets(input: $input) {
+            ... on Asset {
+              id
+            }
+          }
+        }
+      `,
+      filePaths: [path.join(__dirname, '../fixtures/logo.png')],
+      mapVariables: () => ({ input: [{ file: null }] }),
+    });
+    const assetId = createAssets[0].id as string;
+    // The test server encodes IDs ("T_1"); the document is JSON, so Vendure's ID codec does not decode it
+    expect(assetId).toMatch(/^T_/);
+    const { eInvoiceDefaultLayout: base } = await adminClient.query(DEFAULT_LAYOUT);
+    const withImage = (id: string) => ({
+      ...base,
+      blocks: [
+        ...base.blocks,
+        {
+          key: 'img',
+          type: 'image',
+          visible: true,
+          pages: 'first',
+          frame: { x: 1200, y: 2600, w: 300, h: 150 },
+          overflow: 'fixed',
+          props: { assetId: id },
+        },
+      ],
+    });
+
+    const { eInvoiceLayoutPreview } = await adminClient.query(LAYOUT_PREVIEW, { input: { layout: { document: withImage(assetId) } } });
+    expect(eInvoiceLayoutPreview.issues.map((i: { code: string }) => i.code)).not.toContain('LOGO_NOT_FOUND');
+    expect(bytes(eInvoiceLayoutPreview.pdf).toString('latin1')).toContain('/Subtype /Image');
+
+    const { updateEInvoiceChannelSettings } = await adminClient.query(SAVE_LAYOUT, { input: { layout: { document: withImage(assetId) } } });
+    const saved = updateEInvoiceChannelSettings.layout.document.blocks.find((b: { key: string }) => b.key === 'img');
+    expect(saved.props.assetId).toBe(assetId);
+    const connection = server.app.get(TransactionalConnection);
+    const row = await connection.rawConnection.getRepository(EInvoiceChannelSettings).findOneByOrFail({ channelId: 1 });
+    expect(String(row.layout.blocks.find((b) => b.key === 'img')!.props!.assetId)).toBe(assetId.replace('T_', ''));
+
+    // Malformed IDs must not reach the database: the preview renders without the image, saving keeps working
+    const missing = await adminClient.query(LAYOUT_PREVIEW, { input: { layout: { document: withImage('not-an-id') } } });
+    expect(missing.eInvoiceLayoutPreview.issues.map((i: { code: string }) => i.code)).toContain('LOGO_NOT_FOUND');
+    await adminClient.query(SAVE_LAYOUT, { input: { layout: { document: withImage('not-an-id') } } });
   });
 
   it('converts v1 layouts when they are read', async () => {
