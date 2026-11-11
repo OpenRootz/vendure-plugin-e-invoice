@@ -20,7 +20,7 @@ import {
 } from '@vendure/dashboard';
 import { useEffect, useState } from 'react';
 
-import { errorMessage, IssueList, openPdf, UPDATE } from './common';
+import { errorMessage, IssueList, openPdf, UnsavedChangesGuard, UPDATE } from './common';
 import { ChannelSettings, layoutPreviewDocument, settingsDocument, updateSettingsDocument } from './graphql';
 
 const EMPTY: ChannelSettings = { enabled: false, autoIssue: true, seller: {}, payment: {}, layout: {} };
@@ -150,9 +150,11 @@ export function SettingsPage() {
 
   if (isLoading) return null;
   const setupIssues = data?.eInvoiceSetupStatus ?? [];
+  const dirty = !!data && JSON.stringify(toInput(settings)) !== JSON.stringify(toInput(data.eInvoiceChannelSettings));
 
   return (
     <Page pageId="e-invoice-settings">
+      {canUpdate && <UnsavedChangesGuard dirty={dirty && !save.isPending} />}
       <PageTitle>E-Invoice settings</PageTitle>
       <PageActionBar>
         <PageActionBarRight>

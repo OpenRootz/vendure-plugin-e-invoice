@@ -1,4 +1,15 @@
-import { Badge, Link } from '@vendure/dashboard';
+import {
+  Badge,
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Link,
+  useBlocker,
+} from '@vendure/dashboard';
 
 import type { EInvoiceFormat, EInvoiceIssue, EInvoiceStatus, EInvoiceType } from './graphql';
 
@@ -79,3 +90,24 @@ export function openPdf(dataUrl: string) {
 }
 
 export const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+/** Asks before leaving the page (or closing the tab) while there are unsaved changes. */
+export function UnsavedChangesGuard({ dirty }: { dirty: boolean }) {
+  const { proceed, reset, status } = useBlocker({ shouldBlockFn: () => dirty, withResolver: true, enableBeforeUnload: () => dirty });
+  return (
+    <Dialog open={status === 'blocked'} onOpenChange={(open) => !open && reset?.()}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>Discard unsaved changes?</DialogTitle>
+          <DialogDescription>The changes on this page have not been saved and will be lost.</DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => reset?.()}>
+            Stay on this page
+          </Button>
+          <Button onClick={() => proceed?.()}>Discard changes</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
