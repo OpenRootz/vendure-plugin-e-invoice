@@ -3,6 +3,7 @@ import { ReactNode } from 'react';
 
 import { layoutFontsDocument } from '../graphql';
 
+import { LinkIcon, LockIcon, LockOpenIcon } from './icons';
 import {
   Block,
   BLOCK_LABELS,
@@ -96,7 +97,11 @@ export function BlockList({
               />
               <button type="button" className="flex-1 truncate text-left" onClick={() => onSelect(b.key)}>
                 {BLOCK_LABELS[b.type]}
-                {b.anchor && <span title={`Follows ${b.anchor.to}`}> 🔗</span>}
+                {b.anchor && (
+                  <span title={`Follows ${b.anchor.to}`} aria-label={`Follows ${b.anchor.to}`} className="ml-1 text-muted-foreground">
+                    <LinkIcon />
+                  </span>
+                )}
                 {issue && <span className={issue.level === 'error' ? 'text-destructive' : 'text-amber-600'}> ●</span>}
               </button>
               {fields.length > 0 && (
@@ -109,11 +114,13 @@ export function BlockList({
               )}
               <button
                 type="button"
-                className="text-xs"
+                className={locked.has(b.key) ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}
                 title={locked.has(b.key) ? 'Unlock' : 'Lock against moving (only while this page is open; not saved)'}
+                aria-label={`Lock ${BLOCK_LABELS[b.type]}`}
+                aria-pressed={locked.has(b.key)}
                 onClick={() => onToggleLock(b.key)}
               >
-                {locked.has(b.key) ? '🔒' : '🔓'}
+                {locked.has(b.key) ? <LockIcon className="h-3.5 w-3.5" /> : <LockOpenIcon className="h-3.5 w-3.5" />}
               </button>
             </li>
           );
