@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { Asset, ID, RequestContext, TaxRate, TransactionalConnection, UserInputError } from '@vendure/core';
+import { Asset, ConfigService, ID, RequestContext, TaxRate, TransactionalConnection, UserInputError } from '@vendure/core';
 
 import { PLUGIN_INIT_OPTIONS } from '../constants';
 import { checkSeller, isLayoutV2, layoutFromV1, PdfLayout } from '../core';
@@ -36,6 +36,7 @@ export class ChannelSettingsService {
   constructor(
     @Inject(PLUGIN_INIT_OPTIONS) private options: ResolvedEInvoicePluginOptions,
     private connection: TransactionalConnection,
+    private configService: ConfigService,
   ) {}
 
   /** Settings of the current channel; an unsaved default (disabled) when none exist yet. v1 layouts are converted. */
@@ -111,7 +112,8 @@ export class ChannelSettingsService {
     const taxRates = await this.connection.getRepository(ctx, TaxRate).find({ where: { enabled: true }, order: { id: 'ASC' } });
     for (const rate of taxRates) {
       const code = rate.customFields?.eInvoiceCategoryCode || undefined;
-      const path = `taxRate:${rate.id}`;
+      // The dashboard links to the tax rate, so the path carries the ID as the API exposes it
+      const path = `taxRate:${this.apiId(rate.id)}`;
       const zero = Number(rate.value) === 0;
       if (zero && (!code || code === 'S')) {
         issues.push({
@@ -140,6 +142,13 @@ export class ChannelSettingsService {
       }
     }
     return issues;
+  }
+
+  /** An entity ID as the API exposes it (encoded by the configured `EntityIdStrategy`). */
+  private apiId(id: ID): ID {
+    const { entityOptions, entityIdStrategy } = this.configService;
+    const strategy = entityOptions.entityIdStrategy ?? entityIdStrategy;
+    return strategy ? strategy.encodeId(id) : id;
   }
 }
 

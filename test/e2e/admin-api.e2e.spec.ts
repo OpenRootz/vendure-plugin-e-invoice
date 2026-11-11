@@ -167,7 +167,8 @@ describe('Admin API', () => {
     const codes = eInvoiceSetupStatus.map((i: { code: string }) => i.code);
     expect(codes).toEqual(expect.arrayContaining(['NOT_ENABLED', 'SELLER_INCOMPLETE', 'SELLER_TAX_ID_MISSING', 'TAX_CATEGORY_MISSING']));
     const taxIssue = eInvoiceSetupStatus.find((i: { code: string }) => i.code === 'TAX_CATEGORY_MISSING');
-    expect(taxIssue.path).toMatch(/^taxRate:/);
+    // The dashboard links to the tax rate: the ID is encoded like any API ID (the e2e ID strategy encodes 1 as T_1)
+    expect(taxIssue.path).toMatch(/^taxRate:T_\d+$/);
     expect(taxIssue.message).toContain('Zero');
   });
 
