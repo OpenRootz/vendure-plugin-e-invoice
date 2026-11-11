@@ -148,7 +148,7 @@ export function OrderInvoicesBlock({ orderId }: { orderId: string }) {
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-wrap justify-end gap-1">
-                      {inv.status === 'ISSUED' && (
+                      {canCreate && inv.status === 'ISSUED' && (
                         <Button
                           size="xs"
                           variant="ghost"

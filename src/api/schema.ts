@@ -439,7 +439,7 @@ export const adminApiExtensions = gql`
     createEInvoiceCreditNote(input: CreateEInvoiceCreditNoteInput!): EInvoice!
     "Credit the invoice in full and issue a new one for the current order (e.g. after correcting the buyer data). Returns the new invoice."
     cancelAndReissueEInvoice(invoiceId: ID!): EInvoice!
-    "Download link for customers without an account, e.g. to send by email. Valid for downloadLinks.guestTtl (default 7 days)."
+    "Download link for customers without an account, e.g. to send by email. Valid for downloadLinks.guestTtl (default 7 days). Requires CreateEInvoice."
     createEInvoiceGuestLink(invoiceId: ID!, format: EInvoiceFormat): String!
     "Download link for a ZIP archive with all files of the given issued documents"
     createEInvoiceZipLink(ids: [ID!]!): String!

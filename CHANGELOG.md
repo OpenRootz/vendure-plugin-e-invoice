@@ -35,3 +35,7 @@ First release.
   `Referrer-Policy: no-referrer`
 - `downloadLinks.baseUrl` must be an http(s) URL; a warning is logged when links are built from the `Host` header
 - CI runs with a read-only `GITHUB_TOKEN`
+- `createEInvoiceGuestLink` requires `CreateEInvoice` instead of `ReadEInvoice`; the dashboard shows "Copy guest
+  link" only with that permission
+- Guest links created outside the Admin API require `downloadLinks.baseUrl` instead of using the `Host` header
+- ZIP downloads pack every document once and no longer overwrite a file when two documents share a file name

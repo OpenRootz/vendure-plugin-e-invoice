@@ -41,6 +41,22 @@ const ZIP_LINK = gql`
   }
 `;
 
+const CREATE_ROLE = gql`
+  mutation ($input: CreateRoleInput!) {
+    createRole(input: $input) {
+      id
+    }
+  }
+`;
+
+const CREATE_ADMIN = gql`
+  mutation ($input: CreateAdministratorInput!) {
+    createAdministrator(input: $input) {
+      id
+    }
+  }
+`;
+
 const SHOP_ORDER = gql`
   query ($code: String!) {
     orderByCode(code: $code) {
@@ -177,6 +193,25 @@ describe('Downloads and Shop API', () => {
     expect(missing).toContain('has no XRECHNUNG_UBL file');
   });
 
+  it('creates guest links only with the CreateEInvoice permission', async () => {
+    const { createRole } = await adminClient.query(CREATE_ROLE, {
+      input: { code: 'invoice-reader', description: 'Invoice reader', permissions: ['ReadOrder', 'ReadEInvoice'], channelIds: ['1'] },
+    });
+    await adminClient.query(CREATE_ADMIN, {
+      input: { firstName: 'Invoice', lastName: 'Reader', emailAddress: 'reader@example.com', password: 'secret', roleIds: [createRole.id] },
+    });
+    await adminClient.asUserWithCredentials('reader@example.com', 'secret');
+    try {
+      const error = await adminClient.query(GUEST_LINK, { invoiceId: invoice.id }).catch((e: Error) => e.message);
+      expect(error).toMatch(/not currently authorized/);
+      // Admin links (files, ZIP) expire after minutes and stay with ReadEInvoice
+      const { createEInvoiceZipLink } = await adminClient.query(ZIP_LINK, { ids: [invoice.id] });
+      expect((await get(createEInvoiceZipLink)).status).toBe(200);
+    } finally {
+      await adminClient.asSuperAdmin();
+    }
+  });
+
   it('downloads several invoices as one ZIP archive', async () => {
     const second = await placeOrder(shopClient, { items: [{ sku: 'BOOK-1', quantity: 1 }] });
     const [secondInvoice] = await waitForInvoices(adminClient, second.id, issued);
@@ -192,6 +227,12 @@ describe('Downloads and Shop API', () => {
     expect(ids).toHaveLength(2);
     const tampered = withParam(createEInvoiceZipLink, 'ids', ids[0]);
     expect((await get(tampered)).status).toBe(403);
+
+    // The same document twice is packed once
+    const twice = await adminClient.query(ZIP_LINK, { ids: [invoice.id, invoice.id] });
+    expect(Object.keys(unzipSync((await get(twice.createEInvoiceZipLink)).body)).sort()).toEqual(
+      invoice.files.map((f) => f.fileName).sort(),
+    );
 
     const tooMany = Array.from({ length: 501 }, () => invoice.id);
     expect(await adminClient.query(ZIP_LINK, { ids: tooMany }).catch((e: Error) => e.message)).toContain('At most 500');
