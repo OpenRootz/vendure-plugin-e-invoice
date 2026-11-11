@@ -1,4 +1,4 @@
-// Local dev server: fresh Postgres DB (docker compose) seeded with a German shop + the plugin.
+// Local dev server: fresh Postgres DB (docker compose) seeded with a German shop (EUR, German) + the plugin.
 //   pnpm db:up && pnpm dev     → http://localhost:3050/admin-api, /shop-api
 //   pnpm dashboard:build first → the dashboard with the plugin's extension at /dashboard
 // Set TEST_DB=sqljs to run without Docker.
@@ -8,7 +8,8 @@ import { DefaultLogger, LogLevel } from '@vendure/core';
 import { DashboardPlugin } from '@vendure/dashboard/plugin';
 import fs from 'fs';
 import path from 'path';
-import { createTestEnvironment } from '@vendure/testing';
+import { createTestEnvironment, SimpleGraphQLClient } from '@vendure/testing';
+import gql from 'graphql-tag';
 
 import { initialData } from './fixtures/initial-data';
 import { createConfig, fixtures } from './helpers';
@@ -19,11 +20,61 @@ import { createConfig, fixtures } from './helpers';
   if (fs.existsSync(path.join(dashboardDir, 'index.html'))) {
     config.plugins.push(DashboardPlugin.init({ route: 'dashboard', appDir: dashboardDir }));
   }
-  const { server } = createTestEnvironment(config);
+  const { server, adminClient } = createTestEnvironment(config);
   await server.init({ initialData, productsCsvPath: fixtures.productsCsvPath, customerCount: 5 });
+  await useGermanChannel(adminClient);
   console.log(`\nVendure dev server running on http://localhost:${config.apiOptions.port}`);
   console.log('Admin API: /admin-api  ·  Shop API: /shop-api  ·  Dashboard: /dashboard  ·  superadmin / superadmin\n');
 })().catch((e) => {
   console.error(e);
   process.exit(1);
 });
+
+/**
+ * Vendure creates the default channel with USD and the configured default language (English in the test config);
+ * the initial data cannot change that. The prices of the imported products follow the new currency.
+ */
+async function useGermanChannel(adminClient: SimpleGraphQLClient) {
+  await adminClient.asSuperAdmin();
+  await adminClient.query(gql`
+    mutation {
+      updateGlobalSettings(input: { availableLanguages: [de, en] }) {
+        ... on GlobalSettings {
+          id
+        }
+      }
+    }
+  `);
+  const { activeChannel } = await adminClient.query(gql`
+    query {
+      activeChannel {
+        id
+      }
+    }
+  `);
+  const { updateChannel } = await adminClient.query(
+    gql`
+      mutation ($input: UpdateChannelInput!) {
+        updateChannel(input: $input) {
+          ... on Channel {
+            defaultCurrencyCode
+            defaultLanguageCode
+          }
+          ... on ErrorResult {
+            message
+          }
+        }
+      }
+    `,
+    {
+      input: {
+        id: activeChannel.id,
+        defaultCurrencyCode: 'EUR',
+        availableCurrencyCodes: ['EUR'],
+        defaultLanguageCode: 'de',
+        availableLanguageCodes: ['de', 'en'],
+      },
+    },
+  );
+  if (updateChannel.message) throw new Error(updateChannel.message);
+}
