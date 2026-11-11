@@ -103,11 +103,15 @@ const INVOICE_FIELDS = `
   }
 `;
 
-export const orderEInvoicesDocument = doc<{ order: { id: string; code: string; eInvoices: EInvoiceRow[] } | null }, { id: string }>(`
+export const orderEInvoicesDocument = doc<
+  { order: { id: string; code: string; state: string; eInvoices: EInvoiceRow[] } | null },
+  { id: string }
+>(`
   query EInvoicesOfOrder($id: ID!) {
     order(id: $id) {
       id
       code
+      state
       eInvoices {
         ${INVOICE_FIELDS}
       }

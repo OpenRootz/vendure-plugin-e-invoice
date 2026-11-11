@@ -1,12 +1,15 @@
+import { TransactionalConnection } from '@vendure/core';
 import { createTestEnvironment } from '@vendure/testing';
 import gql from 'graphql-tag';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { EInvoice } from '../../src/entities';
 import { initialData } from '../fixtures/initial-data';
 import { createConfig, fixtures } from '../helpers';
 import { extractFacturX } from '../pdf-utils';
 
 import {
+  CREATE_INVOICE,
   E_INVOICE_FIELDS,
   InvoiceResult,
   placeOrder,
@@ -302,6 +305,35 @@ describe('Credit notes', () => {
       await refund(order.id, 500);
       await new Promise((r) => setTimeout(r, 1000));
       expect(await waitForInvoices(adminClient, order.id, settled(4))).toHaveLength(4);
+    });
+
+    it('does not create an invoice for the cancelled order', async () => {
+      const error = await adminClient.query(CREATE_INVOICE, { orderId: order.id }).catch((e: Error) => e.message);
+      expect(error).toContain('is cancelled');
+    });
+
+    it('removes a BLOCKED invoice of the cancelled order on retry', async () => {
+      // Left behind by earlier versions, which created a (never issuable) invoice for a cancelled order
+      const repo = server.app.get(TransactionalConnection).rawConnection.getRepository(EInvoice);
+      const original = await repo.findOneByOrFail({ number: invoice.number! });
+      const blocked = await repo.save(
+        new EInvoice({
+          channelId: original.channelId,
+          orderId: original.orderId,
+          type: 'invoice',
+          status: 'BLOCKED',
+          reason: 'manual',
+          currencyCode: original.currencyCode,
+          totalNet: 0,
+          totalTax: 0,
+          totalWithTax: 0,
+          formats: original.formats,
+          issues: [{ code: 'EMPTY_INVOICE', message: 'The invoice has no lines' }],
+        }),
+      );
+      const { retryEInvoice } = await adminClient.query(RETRY_INVOICE, { id: `T_${blocked.id}` });
+      expect(retryEInvoice).toBeNull();
+      expect(await repo.findOneBy({ id: blocked.id })).toBeNull();
     });
   });
 

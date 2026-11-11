@@ -80,6 +80,7 @@ export function OrderInvoicesBlock({ orderId }: { orderId: string }) {
     (i) => i.type === 'INVOICE' && ['PENDING', 'ISSUED', 'FAILED'].includes(i.status) && i.remainingAmount > 0,
   );
   const hasBlocked = invoices.some((i) => i.type === 'INVOICE' && i.status === 'BLOCKED');
+  const cancelled = data?.order?.state === 'Cancelled';
 
   return (
     <div className="space-y-3">
@@ -191,7 +192,7 @@ export function OrderInvoicesBlock({ orderId }: { orderId: string }) {
         </Table>
       )}
       <div className="flex gap-2">
-        {canCreate && !hasOpenInvoice && !hasBlocked && (
+        {canCreate && !cancelled && !hasOpenInvoice && !hasBlocked && (
           <Button size="sm" onClick={() => run('Invoice created', () => api.mutate(createInvoiceDocument, { orderId }))}>
             Create invoice
           </Button>
