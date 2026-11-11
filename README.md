@@ -284,6 +284,10 @@ Permissions: `CreateEInvoice`, `ReadEInvoice`, `UpdateEInvoice` (retry, void, se
 grant access to orders: `eInvoicePreview`, `eInvoiceLayoutPreview` with an `orderId` and the `EInvoice.order` field
 also need `ReadOrder` (without it, `order` is `null`).
 
+`EInvoice.reason` tells why a document was created: `auto` (trigger), `manual` (issued or credited by an admin),
+`refund`, `cancellation` (order cancelled), `modification` (order modified) and `reissue`
+(`cancelAndReissueEInvoice`). `modification` and `reissue` mark a pair: the full credit note and the new invoice.
+
 | Query / mutation                                            |                                                                                                                                                                 |
 | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `eInvoices(options)`                                        | list with filters and sorting (incl. `type`, `status`, `orderCode`)                                                                                             |

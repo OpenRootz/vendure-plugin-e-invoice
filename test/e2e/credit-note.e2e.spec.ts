@@ -352,12 +352,12 @@ describe('Credit notes', () => {
   it('cancels and reissues an invoice on request', async () => {
     const { order, invoice } = await issuedOrder();
     const { cancelAndReissueEInvoice } = await adminClient.query(CANCEL_AND_REISSUE, { invoiceId: invoice.id });
-    expect(cancelAndReissueEInvoice).toMatchObject({ type: 'INVOICE', reason: 'manual', totalWithTax: invoice.totalWithTax });
+    expect(cancelAndReissueEInvoice).toMatchObject({ type: 'INVOICE', reason: 'reissue', totalWithTax: invoice.totalWithTax });
     const docs = await waitForInvoices(adminClient, order.id, settled(3));
-    expect(docs.map((d) => [d.type, d.number])).toEqual([
-      ['INVOICE', invoice.number],
-      ['CREDIT_NOTE', expect.stringMatching(/^GS-/)],
-      ['INVOICE', cancelAndReissueEInvoice.number],
+    expect(docs.map((d) => [d.type, d.number, d.reason])).toEqual([
+      ['INVOICE', invoice.number, invoice.reason],
+      ['CREDIT_NOTE', expect.stringMatching(/^GS-/), 'reissue'],
+      ['INVOICE', cancelAndReissueEInvoice.number, 'reissue'],
     ]);
     const pdf = (await readFiles(server, docs[1].number!)).zugferd;
     expect(extractFacturX(pdf)).toContain(`<ram:IssuerAssignedID>${invoice.number}</ram:IssuerAssignedID>`);

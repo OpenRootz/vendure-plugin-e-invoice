@@ -24,7 +24,12 @@ export interface ValidationSummary {
   error?: string;
 }
 
-export type EInvoiceReason = 'auto' | 'manual' | 'refund' | 'cancellation' | 'modification';
+/**
+ * Why a document was created: `auto` (trigger), `manual` (issued or credited by an admin), `refund`,
+ * `cancellation` (order cancelled), `modification` (order modified: credit note + new invoice),
+ * `reissue` (cancel and reissue by an admin: credit note + new invoice).
+ */
+export type EInvoiceReason = 'auto' | 'manual' | 'refund' | 'cancellation' | 'modification' | 'reissue';
 
 @Entity('e_invoice')
 @Index(['channelId', 'number'], { unique: true })

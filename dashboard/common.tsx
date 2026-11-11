@@ -44,6 +44,7 @@ export const reasonLabel: Record<string, string> = {
   refund: 'Refund',
   cancellation: 'Cancellation',
   modification: 'Order modification',
+  reissue: 'Reissue',
 };
 
 /** Where an issue can be fixed in the dashboard. */
