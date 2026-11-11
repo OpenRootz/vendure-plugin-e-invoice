@@ -12,7 +12,7 @@ import {
   EInvoiceLayoutResolver,
   EInvoiceOrderResolver,
 } from './api/admin.resolver';
-import { eInvoicePermission, loggerCtx, PLUGIN_INIT_OPTIONS } from './constants';
+import { eInvoicePermissionDefinitions, loggerCtx, PLUGIN_INIT_OPTIONS } from './constants';
 import { customFields } from './custom-fields';
 import {
   adaptJsonColumns,
@@ -61,7 +61,7 @@ import { LayoutPreviewService } from './services/layout-preview.service';
     const options = EInvoicePlugin.options;
     defineBlobColumn(config.dbConnectionOptions.type);
     adaptJsonColumns(config.dbConnectionOptions.type);
-    config.authOptions.customPermissions.push(eInvoicePermission);
+    config.authOptions.customPermissions.push(...eInvoicePermissionDefinitions);
     const fields = customFields({ exposeBuyerFieldsInShop: options.exposeBuyerFieldsInShop });
     config.customFields.Customer.push(...fields.Customer);
     config.customFields.Order.push(...fields.Order);
