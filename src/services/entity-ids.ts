@@ -20,11 +20,14 @@ export function decodeEntityId(config: ConfigService, id: ID): ID {
   return s ? s.decodeId(String(id)) : id;
 }
 
+/** Upper bound of the `integer` primary key columns of the increment strategy (Postgres `int4`). */
+const MAX_INT_ID = 2 ** 31 - 1;
+
 /** Whether a decoded ID fits the primary key column; anything else would make the database query fail. */
 export function isStorableId(config: ConfigService, id: ID): boolean {
   if (strategy(config)?.primaryKeyType === 'uuid') return UUID.test(String(id));
   const n = typeof id === 'number' ? id : Number(id);
-  return Number.isSafeInteger(n) && n > 0 && String(n) === String(id);
+  return Number.isSafeInteger(n) && n > 0 && n <= MAX_INT_ID && String(n) === String(id);
 }
 
 /**

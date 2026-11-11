@@ -1,5 +1,5 @@
 import { Controller, Get, Inject, Param, Query, Res } from '@nestjs/common';
-import { Channel, ID, Logger, RequestContext, RequestContextService, TransactionalConnection } from '@vendure/core';
+import { Channel, ConfigService, ID, Logger, RequestContext, RequestContextService, TransactionalConnection } from '@vendure/core';
 import { createHash } from 'crypto';
 import type { Response } from 'express';
 import { zipSync } from 'fflate';
@@ -10,14 +10,9 @@ import { EInvoiceFormat } from '../core';
 import { EInvoice, EInvoiceFile } from '../entities';
 import { ResolvedEInvoicePluginOptions } from '../options';
 import { DOWNLOAD_ROUTE, DownloadLinkService, MAX_ZIP_INVOICES, SignedPayload } from '../services/download-link.service';
+import { isStorableId } from '../services/entity-ids';
 
 const FORMATS: EInvoiceFormat[] = ['zugferd', 'xrechnung-cii', 'xrechnung-ubl'];
-
-/**
- * Internal entity IDs as they appear in links (integers or UUIDs with the built-in ID strategies). The route is
- * unauthenticated until the signature is checked, so anything else is rejected before it reaches the database.
- */
-const ID_PATTERN = /^[A-Za-z0-9-]{1,64}$/;
 
 class HttpError extends Error {
   constructor(
@@ -39,6 +34,7 @@ export class EInvoiceDownloadController {
     private connection: TransactionalConnection,
     private links: DownloadLinkService,
     private requestContextService: RequestContextService,
+    private configService: ConfigService,
   ) {}
 
   @Get('download/:id')
@@ -95,9 +91,13 @@ export class EInvoiceDownloadController {
     }
   }
 
-  /** Loads the documents in the order of the IDs; unknown and not yet issued documents are a 404. */
+  /**
+   * Loads the documents in the order of the IDs; unknown and not yet issued documents are a 404. Links carry the
+   * internal IDs. The route is unauthenticated until the signature is checked, so IDs that do not fit the primary
+   * key column are rejected before they reach the database.
+   */
   private async loadIssued(ids: ID[]): Promise<EInvoice[]> {
-    if (ids.some((id) => !ID_PATTERN.test(String(id)))) throw new HttpError(404, 'Not found');
+    if (ids.some((id) => !isStorableId(this.configService, id))) throw new HttpError(404, 'Not found');
     const invoices = await this.connection.rawConnection
       .getRepository(EInvoice)
       .find({ where: { id: In(ids), status: 'ISSUED' }, relations: ['files'] });
