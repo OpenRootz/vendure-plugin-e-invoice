@@ -140,6 +140,8 @@ export class InvoiceService implements OnApplicationBootstrap {
     const invoice = await this.connection.withTransaction(ctx, async (txCtx) => {
       const order = await lockOrder(this.connection, txCtx, orderId);
       if (!order) throw new UserInputError(`Order ${orderId} not found`);
+      // A cancelled order has no lines left: the invoice would stay BLOCKED for good
+      if (order.state === 'Cancelled') throw new UserInputError(`Order ${order.code} is cancelled`);
       const open = await this.openInvoice(txCtx, orderId);
       if (open) throw new UserInputError(`Order ${order.code} already has invoice ${open.number}`);
       return this.issue(txCtx, orderId, 'manual');
@@ -205,12 +207,18 @@ export class InvoiceService implements OnApplicationBootstrap {
       return this.creditRefund(ctx, existing.refundId);
     }
     const invoice = await this.connection.withTransaction(ctx, async (txCtx) => {
-      await lockOrder(this.connection, txCtx, existing.orderId);
+      const order = await lockOrder(this.connection, txCtx, existing.orderId);
       // A concurrent retry may have issued it meanwhile; issuing again would create a second invoice
       const current = await this.findOne(txCtx, id);
       if (current?.status !== 'BLOCKED') throw new UserInputError(`E-invoice ${id} is ${current?.status} and cannot be retried`);
+      if (order?.state === 'Cancelled') {
+        // Like reconcile: a BLOCKED invoice of a cancelled order is removed (no number, no gap)
+        await this.connection.getRepository(txCtx, EInvoice).remove(current);
+        return undefined;
+      }
       return this.issue(txCtx, existing.orderId, existing.reason);
     });
+    if (!invoice) return undefined;
     await this.afterIssue(ctx, [invoice]);
     return invoice;
   }

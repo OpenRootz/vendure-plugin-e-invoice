@@ -427,10 +427,11 @@ export const adminApiExtensions = gql`
   }
 
   extend type Mutation {
-    "Create the invoice for an order. Returns a BLOCKED invoice with issues if data is missing."
+    "Create the invoice for an order (not for cancelled orders). Returns a BLOCKED invoice with issues if data is missing."
     createEInvoice(orderId: ID!): EInvoice!
     """
-    BLOCKED invoice: map the order again. BLOCKED credit note: build it from the refund again; returns null if it is
+    BLOCKED invoice: map the order again; returns null if the order has been cancelled meanwhile and the invoice was
+    removed. BLOCKED credit note: build it from the refund again; returns null if it is
     no longer needed (e.g. the invoice has been credited in full meanwhile) and was removed. FAILED: render the files again.
     """
     retryEInvoice(id: ID!): EInvoice
