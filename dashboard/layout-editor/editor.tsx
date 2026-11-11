@@ -1,7 +1,7 @@
 import { api, AssetPickerDialog, Button, toast, useMutation, useQuery, useQueryClient } from '@vendure/dashboard';
 import { KeyboardEvent, useCallback, useMemo, useState } from 'react';
 
-import { errorMessage } from '../common';
+import { errorMessage, UnsavedChangesGuard } from '../common';
 import { assetDocument, defaultLayoutDocument, LayoutPresetName, updateSettingsDocument } from '../graphql';
 import { DEFAULT_PREVIEW_OPTIONS, PreviewIssues, PreviewOptions, PreviewToolbar, useLayoutPreview } from '../layout-preview';
 
@@ -184,6 +184,7 @@ export function LayoutEditor({
 
   return (
     <div className="space-y-3 outline-none" tabIndex={0} onKeyDown={onKeyDown}>
+      {canUpdate && <UnsavedChangesGuard dirty={dirty && !save.isPending} />}
       {/* toolbar */}
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <Button size="sm" variant="outline" disabled={!history.past.length} onClick={undo} title="Undo (Ctrl+Z)">
