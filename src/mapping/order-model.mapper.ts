@@ -21,6 +21,25 @@ import { SellerData } from '../strategies/types';
 
 import { buildModel, isoDateInZone, rateToDecimal } from './build-model';
 
+const compareIds = (a: ID, b: ID) => (typeof a === 'number' && typeof b === 'number' ? a - b : String(a).localeCompare(String(b)));
+const compareCreated = (a: { createdAt: Date; id: ID }, b: { createdAt: Date; id: ID }) =>
+  a.createdAt.getTime() - b.createdAt.getTime() || compareIds(a.id, b.id);
+
+/**
+ * Loaded relations come back in no particular order, which would make line numbers and line IDs of new
+ * documents arbitrary. Lines follow Vendure's own order (`OrderService.findOne`: creation time, then
+ * variant); the ID makes every order total.
+ */
+export function sortOrderRelations(order: Order): Order {
+  order.lines?.sort(
+    (a, b) => a.createdAt.getTime() - b.createdAt.getTime() || compareIds(a.productVariantId, b.productVariantId) || compareIds(a.id, b.id),
+  );
+  order.shippingLines?.sort(compareCreated);
+  order.surcharges?.sort(compareCreated);
+  order.payments?.sort(compareCreated);
+  return order;
+}
+
 /** Relations the mapper needs on the order. */
 export const ORDER_RELATIONS = [
   'customer',
@@ -76,7 +95,7 @@ export class OrderModelMapper {
       where: { id: orderId, channels: { id: ctx.channelId } },
       relations: [...ORDER_RELATIONS],
     });
-    return order ?? undefined;
+    return order ? sortOrderRelations(order) : undefined;
   }
 
   async toModel(ctx: RequestContext, order: Order, issueDate: IsoDate = this.today()): Promise<MappedOrder | undefined> {
