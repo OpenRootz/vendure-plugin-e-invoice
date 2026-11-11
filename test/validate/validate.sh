@@ -44,7 +44,9 @@ for pdf in "${pdfs[@]}"; do
   echo "== Mustang ${MUSTANG_VERSION}: $pdf"
   out=$(java -jar /tools/mustang.jar --no-notices --action validate --source "/data/$pdf" 2>&1 || true)
   echo "$out" > "$REPORTS/${pdf%.pdf}.mustang.xml"
-  if echo "$out" | grep -q 'status="valid"'; then echo "   valid"; else echo "   INVALID (see $REPORTS/${pdf%.pdf}.mustang.xml)"; failed=1; fi
+  # The report has a summary for the PDF part, the XML part and, last, the whole file: only the last one counts
+  overall=$(echo "$out" | grep -o '<summary status="[a-z]*"/>' | tail -n 1 || true)
+  if [ "$overall" = '<summary status="valid"/>' ]; then echo "   valid"; else echo "   INVALID (see $REPORTS/${pdf%.pdf}.mustang.xml)"; failed=1; fi
 
   echo "== veraPDF (PDF/A-3b): $pdf"
   if docker run --rm -v "$DIR:/data:ro" "$VERAPDF_IMAGE" --flavour 3b --format text "/data/$pdf" | tee "$REPORTS/${pdf%.pdf}.verapdf.txt" | grep -q '^PASS'; then
