@@ -33,6 +33,7 @@ export type EInvoiceReason = 'auto' | 'manual' | 'refund' | 'cancellation' | 'mo
 
 @Entity('e_invoice')
 @Index(['channelId', 'number'], { unique: true })
+@Index(['orderId', 'position'], { unique: true })
 export class EInvoice extends VendureEntity {
   constructor(input?: DeepPartial<EInvoice>) {
     super(input);
@@ -47,6 +48,13 @@ export class EInvoice extends VendureEntity {
 
   @EntityId()
   orderId: ID;
+
+  /**
+   * Creation order within the order (1, 2, …; gaps where a BLOCKED document was removed). The documents of an order
+   * are sorted by this, not by `createdAt`, which can go backwards (clock steps, transaction start in Postgres).
+   */
+  @Column('int')
+  position: number;
 
   @Column('varchar')
   type: EInvoiceType;

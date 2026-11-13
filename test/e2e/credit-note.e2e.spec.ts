@@ -320,6 +320,7 @@ describe('Credit notes', () => {
         new EInvoice({
           channelId: original.channelId,
           orderId: original.orderId,
+          position: 99,
           type: 'invoice',
           status: 'BLOCKED',
           reason: 'manual',
@@ -364,6 +365,27 @@ describe('Credit notes', () => {
     // The original can no longer be credited or reissued
     const error = await adminClient.query(CANCEL_AND_REISSUE, { invoiceId: invoice.id }).catch((e: Error) => e.message);
     expect(error).toContain('has been replaced');
+  });
+
+  it('keeps the creation order of the documents when createdAt goes backwards', async () => {
+    const { order, invoice } = await issuedOrder();
+    // As after a clock step back (NTP, VM time sync) or with Postgres' transaction-start timestamps:
+    // the documents created later get an earlier createdAt than the original invoice
+    const repo = server.app.get(TransactionalConnection).rawConnection.getRepository(EInvoice);
+    await repo.update({ number: invoice.number! }, { createdAt: new Date(Date.now() + 3_600_000) });
+
+    const { cancelAndReissueEInvoice } = await adminClient.query(CANCEL_AND_REISSUE, { invoiceId: invoice.id });
+    await waitForInvoices(adminClient, order.id, settled(3));
+    await refund(order.id, 500);
+    const docs = await waitForInvoices(adminClient, order.id, settled(4));
+    expect(docs.map((d) => [d.type, d.reason])).toEqual([
+      ['INVOICE', 'auto'],
+      ['CREDIT_NOTE', 'reissue'],
+      ['INVOICE', 'reissue'],
+      ['CREDIT_NOTE', 'refund'],
+    ]);
+    // The refund is credited against the reissued invoice, not against the fully credited original
+    expect((await getInvoice(cancelAndReissueEInvoice.id)).creditNotes).toEqual([expect.objectContaining({ totalWithTax: 500 })]);
   });
 
   it('replaces the invoice when the order is modified (Q6), without crediting the modification refund twice', async () => {
