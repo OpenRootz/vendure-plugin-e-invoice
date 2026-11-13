@@ -29,7 +29,7 @@ import { ChannelSettingsService, SetupIssue } from './channel-settings.service';
 import { CreditNoteService, NUMBERED_STATUSES } from './credit-note.service';
 import { InvoiceNumberService } from './invoice-number.service';
 import { InvoiceRenderService } from './invoice-render.service';
-import { lockOrder } from './order-lock';
+import { lockOrder, nextDocumentPosition } from './order-lock';
 
 type JobData =
   | { type: 'reconcile'; orderId: ID; ctx: SerializedRequestContext }
@@ -128,7 +128,7 @@ export class InvoiceService implements OnApplicationBootstrap {
     return this.connection.getRepository(ctx, EInvoice).find({
       where: { orderId, channelId: ctx.channelId },
       relations: ['files'],
-      order: { createdAt: 'ASC', id: 'ASC' },
+      order: { position: 'ASC' },
     });
   }
 
@@ -359,7 +359,14 @@ export class InvoiceService implements OnApplicationBootstrap {
     const repo = this.connection.getRepository(ctx, EInvoice);
     const invoice =
       (await repo.findOne({ where: { orderId, type: 'invoice', status: 'BLOCKED' } })) ??
-      new EInvoice({ channelId: ctx.channelId, orderId, type: 'invoice', reason, files: [] });
+      new EInvoice({
+        channelId: ctx.channelId,
+        orderId,
+        position: await nextDocumentPosition(this.connection, ctx, orderId),
+        type: 'invoice',
+        reason,
+        files: [],
+      });
     Object.assign(invoice, {
       currencyCode: model.currencyCode,
       totalNet: model.totals.taxBasisTotal,

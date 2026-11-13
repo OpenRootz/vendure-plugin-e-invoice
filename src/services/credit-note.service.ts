@@ -34,6 +34,7 @@ import { OrderModelMapper } from '../mapping/order-model.mapper';
 import { ResolvedEInvoicePluginOptions } from '../options';
 
 import { InvoiceNumberService } from './invoice-number.service';
+import { nextDocumentPosition } from './order-lock';
 
 /** Documents that count: they have a number (a BLOCKED one has none, a VOID one was never rendered). */
 export const NUMBERED_STATUSES = ['PENDING', 'ISSUED', 'FAILED'] as const;
@@ -64,7 +65,7 @@ export class CreditNoteService {
     return this.connection.getRepository(ctx, EInvoice).find({
       where: { correctedInvoiceId: invoiceId, type: 'credit_note', status: In([...NUMBERED_STATUSES]) },
       relations: ['files'],
-      order: { createdAt: 'ASC', id: 'ASC' },
+      order: { position: 'ASC' },
     });
   }
 
@@ -115,7 +116,16 @@ export class CreditNoteService {
     const options: CreditOptions = { reason: 'refund', refundId };
     const result = await this.build(ctx, invoice, await this.refundRequest(ctx, invoice, refund), options);
     if ('issues' in result) {
-      const blocked = existing ?? new EInvoice({ channelId: ctx.channelId, orderId, type: 'credit_note', reason: 'refund', files: [] });
+      const blocked =
+        existing ??
+        new EInvoice({
+          channelId: ctx.channelId,
+          orderId,
+          position: await nextDocumentPosition(this.connection, ctx, orderId),
+          type: 'credit_note',
+          reason: 'refund',
+          files: [],
+        });
       Object.assign(blocked, {
         status: 'BLOCKED',
         correctedInvoiceId: invoice.id,
@@ -140,7 +150,7 @@ export class CreditNoteService {
   latestInvoice(ctx: RequestContext, orderId: ID): Promise<EInvoice | null> {
     return this.connection.getRepository(ctx, EInvoice).findOne({
       where: { orderId, type: 'invoice', status: In([...NUMBERED_STATUSES]) },
-      order: { createdAt: 'DESC', id: 'DESC' },
+      order: { position: 'DESC' },
     });
   }
 
@@ -230,7 +240,15 @@ export class CreditNoteService {
     // Fail fast: a serializer error rolls back the transaction, so no number is consumed
     toCii(model, 'zugferd');
     const totals = model.totals!;
-    const note = existing ?? new EInvoice({ channelId: ctx.channelId, orderId: invoice.orderId, type: 'credit_note', files: [] });
+    const note =
+      existing ??
+      new EInvoice({
+        channelId: ctx.channelId,
+        orderId: invoice.orderId,
+        position: await nextDocumentPosition(this.connection, ctx, invoice.orderId),
+        type: 'credit_note',
+        files: [],
+      });
     Object.assign(note, {
       status: 'PENDING',
       reason: options.reason,
