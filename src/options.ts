@@ -278,7 +278,7 @@ export function resolveOptions(options: EInvoicePluginOptions): ResolvedEInvoice
       guestTtl: parseDuration(links.guestTtl ?? '7d', 'downloadLinks.guestTtl'),
       ownerTtl: parseDuration(links.ownerTtl ?? '1h', 'downloadLinks.ownerTtl'),
       adminTtl: parseDuration(links.adminTtl ?? '15m', 'downloadLinks.adminTtl'),
-      baseUrl: links.baseUrl?.replace(/\/+$/, ''),
+      baseUrl: links.baseUrl === undefined ? undefined : trimTrailingSlashes(links.baseUrl),
     },
   };
 }
@@ -297,6 +297,13 @@ export function parseDuration(value: Duration, name = 'duration'): number {
     throw new Error(`EInvoicePlugin: \`${name}\` must be a positive number of seconds or a string like '1h', got ${value}`);
   }
   return Math.round(seconds);
+}
+
+/** A loop instead of `/\/+$/`: that pattern backtracks on long runs of slashes that are not at the end. */
+function trimTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value[end - 1] === '/') end--;
+  return value.slice(0, end);
 }
 
 function stripUndefined<T extends object>(o: T): T {
