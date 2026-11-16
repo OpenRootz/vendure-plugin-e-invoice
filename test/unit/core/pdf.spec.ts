@@ -22,6 +22,16 @@ function render(model: EInvoiceModel, language = model.language) {
 
 const sha = (b: Buffer) => createHash('sha256').update(b).digest('hex');
 
+describe('pdfLabels', () => {
+  it('falls back to English for unknown languages, also for names of inherited object properties', () => {
+    for (const language of ['xx', 'constructor', 'toString', 'hasOwnProperty-DE']) {
+      expect(pdfLabels(language)).toEqual(pdfLabels('en'));
+      expect(pdfLabels('de', { [language]: { invoice: 'x' } }).invoice).toBe('Rechnung');
+    }
+    expect(pdfLabels('de-AT').invoice).toBe('Rechnung');
+  });
+});
+
 describe('ZUGFeRD PDF', () => {
   fs.mkdirSync(OUT, { recursive: true });
 

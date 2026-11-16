@@ -43,6 +43,7 @@
   },
   "scripts": {
     "build": "rimraf dist && tsc -p tsconfig.build.json",
+    "prepack": "pnpm build",
     "typecheck": "tsc -p tsconfig.json --noEmit && pnpm typecheck:dashboard",
     "typecheck:dashboard": "tsc -p dashboard/tsconfig.json --pretty false | node test/dashboard/report-ts-errors.mjs",
     "test": "vitest run",

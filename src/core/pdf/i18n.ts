@@ -185,8 +185,10 @@ export const DEFAULT_LABELS: Record<string, PdfLabels> = {
 /** Labels for a language (`de`, `de-AT`, `en`, …), with overrides; falls back to English. */
 export function pdfLabels(language: string, overrides: Record<string, Partial<PdfLabels>> = {}): PdfLabels {
   const lang = language.split(/[-_]/)[0].toLowerCase();
-  const base = DEFAULT_LABELS[lang] ?? DEFAULT_LABELS.en;
-  const override = overrides[language] ?? overrides[lang] ?? {};
+  // Own properties only: a language like `constructor` must not pick up something inherited from Object.prototype
+  const own = <T>(map: Record<string, T>, key: string): T | undefined => (Object.hasOwn(map, key) ? map[key] : undefined);
+  const base = own(DEFAULT_LABELS, lang) ?? DEFAULT_LABELS.en;
+  const override = own(overrides, language) ?? own(overrides, lang) ?? {};
   return { ...base, ...override, units: { ...base.units, ...override.units } };
 }
 
