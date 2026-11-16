@@ -55,6 +55,7 @@ jobs:
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
-      - run: npm publish package/*.tgz --access public --provenance
+      # The leading ./ matters: npm reads `package/<file>.tgz` as the GitHub shorthand `owner/repo`
+      - run: npm publish ./package/*.tgz --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
