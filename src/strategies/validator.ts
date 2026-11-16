@@ -2,17 +2,30 @@ import { RequestContext } from '@vendure/core';
 
 import { InvoiceValidator, ValidationInput, ValidationMessage, ValidationReport } from './types';
 
-/** Accepts everything. The default; runtime validation is off unless `validation.mode` is set. */
+/**
+ * Accepts everything. The default; runtime validation is off unless `validation.mode` is set.
+ *
+ * @category Strategies
+ */
 export class NoopValidator implements InvoiceValidator {
   async validate(): Promise<ValidationReport> {
     return { valid: true, messages: [], validator: 'none' };
   }
 }
 
+/**
+ * Options of the {@link KositHttpValidator}.
+ *
+ * @category Strategies
+ */
 export interface KositHttpValidatorOptions {
   /** URL of the KoSIT validator in daemon mode, e.g. `http://kosit:8080/` */
   url: string;
-  /** Default: 30 seconds */
+  /**
+   * Request timeout in milliseconds.
+   *
+   * @default 30000
+   */
   timeoutMs?: number;
   /** Extra request headers, e.g. for authentication at a proxy */
   headers?: Record<string, string>;
@@ -24,6 +37,16 @@ export interface KositHttpValidatorOptions {
  * XRechnung configuration, which also covers plain EN 16931 (ZUGFeRD) documents.
  *
  * The daemon answers `200` for acceptable and `406` for rejected documents, with the report XML as body.
+ *
+ * @example
+ * ```ts
+ * EInvoicePlugin.init({
+ *   secret: process.env.E_INVOICE_SECRET!,
+ *   validation: { validator: new KositHttpValidator({ url: 'http://kosit:8080/' }), mode: 'report' },
+ * });
+ * ```
+ *
+ * @category Strategies
  */
 export class KositHttpValidator implements InvoiceValidator {
   constructor(private options: KositHttpValidatorOptions) {
@@ -45,7 +68,11 @@ export class KositHttpValidator implements InvoiceValidator {
   }
 }
 
-/** Reads the verdict and the messages from a KoSIT (VARL) report. */
+/**
+ * Reads the verdict and the messages from a KoSIT (VARL) report.
+ *
+ * @internal
+ */
 export function parseKositReport(report: string, acceptedByStatus?: boolean): ValidationReport {
   const reject = /<rep:assessment>\s*<rep:reject\b/.test(report);
   const accept = /<rep:assessment>\s*<rep:accept\b/.test(report);

@@ -5,10 +5,15 @@ import { EInvoiceChannelSettings, SellerSettings } from '../entities/e-invoice-c
 
 import { SellerData, SellerDataStrategy } from './types';
 
-/** Default: seller data from the e-invoice settings of the order's channel. */
+/**
+ * Default: seller data from the e-invoice settings of the order's channel ({@link EInvoiceChannelSettings}).
+ *
+ * @category Strategies
+ */
 export class ChannelSettingsSellerStrategy implements SellerDataStrategy {
   private connection: TransactionalConnection;
 
+  /** @internal */
   init(injector: Injector) {
     this.connection = injector.get(TransactionalConnection);
   }
@@ -25,7 +30,11 @@ export class ChannelSettingsSellerStrategy implements SellerDataStrategy {
   }
 }
 
-/** Missing fields become empty strings; the checks report them as `SELLER_INCOMPLETE`. */
+/**
+ * Missing fields become empty strings; the checks report them as `SELLER_INCOMPLETE`.
+ *
+ * @internal
+ */
 export function sellerFromSettings(s: SellerSettings): Seller {
   return {
     name: s.name ?? '',

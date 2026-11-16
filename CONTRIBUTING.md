@@ -61,6 +61,9 @@ Please open an issue before a pull request, so we can agree on the approach firs
 fine without one.
 
 - Keep a pull request focused on one change and add tests for it.
+- Document new public API (anything exported from `src/index.ts`) with JSDoc: a description, a `@category`
+  (`Plugin`, `Services`, `Entities`, `Events`, `Strategies`, `Mapping`), `@default` on optional options and
+  `@internal` on constructors, lifecycle methods and helpers that are exported only for the plugin itself.
 - Make sure `pnpm test`, `pnpm typecheck`, `pnpm lint` and `pnpm format:check` pass.
 - Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`,
   `docs:`, `chore:`, … with an optional scope such as `fix(pdf):`).

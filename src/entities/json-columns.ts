@@ -15,6 +15,8 @@ const json = {
  * On MySQL / MariaDB the JSON columns of the plugin (invoice snapshot, layout, …) become `LONGTEXT`: a `TEXT`
  * column is too small for the snapshot of a large order or a layout with many text blocks. Other databases
  * keep `simple-json` (unlimited `text`). Called at bootstrap, once the database type is known.
+ *
+ * @internal
  */
 export function adaptJsonColumns(dbType: string): void {
   if (!LONGTEXT_DATABASES.includes(dbType)) return;

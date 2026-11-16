@@ -5,6 +5,11 @@ import path from 'path';
 
 import { InvoiceStorageStrategy, StoredFileInput } from './types';
 
+/**
+ * Options of the {@link LocalFileInvoiceStorageStrategy}.
+ *
+ * @category Strategies
+ */
 export interface LocalFileInvoiceStorageOptions {
   /**
    * Directory for the files. Must not be served publicly (in particular not the AssetServerPlugin's asset dir),
@@ -16,6 +21,16 @@ export interface LocalFileInvoiceStorageOptions {
 /**
  * Stores the files in a local directory, as `<dir>/<channel>/<year>/<file name>`. Files are never overwritten:
  * issued documents are immutable.
+ *
+ * @example
+ * ```ts
+ * EInvoicePlugin.init({
+ *   secret: process.env.E_INVOICE_SECRET!,
+ *   storage: new LocalFileInvoiceStorageStrategy({ dir: path.join(__dirname, '../invoices') }),
+ * });
+ * ```
+ *
+ * @category Strategies
  */
 export class LocalFileInvoiceStorageStrategy implements InvoiceStorageStrategy {
   private readonly dir: string;
@@ -25,6 +40,7 @@ export class LocalFileInvoiceStorageStrategy implements InvoiceStorageStrategy {
     this.dir = path.resolve(options.dir);
   }
 
+  /** @internal */
   async init() {
     await fs.mkdir(this.dir, { recursive: true });
   }
@@ -64,7 +80,11 @@ export class LocalFileInvoiceStorageStrategy implements InvoiceStorageStrategy {
   }
 }
 
-/** Keys are relative paths with safe segments only. */
+/**
+ * Keys are relative paths with safe segments only.
+ *
+ * @internal
+ */
 export function safeKey(key: string): string {
   const segments = key.split('/').map((s) => s.replace(/[^A-Za-z0-9._-]+/g, '_'));
   if (!segments.length || segments.some((s) => s === '' || s === '.' || s === '..')) {

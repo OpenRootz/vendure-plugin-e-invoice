@@ -15,6 +15,8 @@ type OrderAddress = Order['billingAddress'];
  * - delivery address only when the shipping address differs from the billing address.
  *
  * Expects `order.customer` to be loaded.
+ *
+ * @category Strategies
  */
 export class DefaultBuyerDataStrategy implements BuyerDataStrategy {
   async getBuyer(_ctx: RequestContext, order: Order): Promise<BuyerData> {
@@ -65,6 +67,7 @@ function hasAddress(a: OrderAddress | undefined): a is OrderAddress {
   return !!a && !!(clean(a.streetLine1) || clean(a.city));
 }
 
+/** @internal */
 export function toAddress(a: OrderAddress | undefined): Address {
   return {
     line1: clean(a?.streetLine1) ?? '',

@@ -13,6 +13,11 @@ export const DOWNLOAD_ROUTE = 'e-invoice';
 /** Upper bound for one ZIP download. */
 export const MAX_ZIP_INVOICES = 500;
 
+/**
+ * Who a link is for; decides its lifetime (`downloadLinks.guestTtl`, `ownerTtl`, `adminTtl`).
+ *
+ * @category Services
+ */
 export type LinkAudience = 'guest' | 'owner' | 'admin';
 
 export type SignedPayload = { kind: 'file'; invoiceId: ID; format?: EInvoiceFormat } | { kind: 'zip'; invoiceIds: ID[] };
@@ -25,11 +30,20 @@ export type VerifyResult = 'valid' | 'expired' | 'invalid';
  *
  * `sig = HMAC-SHA256(secret, payload | exp | channel token)`: rotating the secret or the channel token
  * invalidates all links.
+ *
+ * @example
+ * ```ts
+ * // A link for the order confirmation email
+ * const url = injector.get(DownloadLinkService).fileLink(event.ctx, event.invoice, 'zugferd', 'guest');
+ * ```
+ *
+ * @category Services
  */
 @Injectable()
 export class DownloadLinkService {
   private warnedAboutHost = false;
 
+  /** @internal */
   constructor(@Inject(PLUGIN_INIT_OPTIONS) private options: ResolvedEInvoicePluginOptions) {}
 
   /** Link to one file of an invoice (default: its first file, usually the ZUGFeRD PDF). */
@@ -48,7 +62,11 @@ export class DownloadLinkService {
     return `${this.baseUrl(ctx, audience)}/${DOWNLOAD_ROUTE}/zip?${query}`;
   }
 
-  /** Checks a signature against the channel of the documents. */
+  /**
+   * Checks a signature against the channel of the documents.
+   *
+   * @internal
+   */
   verify(payload: SignedPayload, exp: number, sig: string, channelToken: string, now = Date.now()): VerifyResult {
     if (!Number.isInteger(exp) || !sig) return 'invalid';
     const expected = Buffer.from(this.hmac(payload, exp, channelToken));
@@ -57,6 +75,7 @@ export class DownloadLinkService {
     return exp * 1000 < now ? 'expired' : 'valid';
   }
 
+  /** @internal */
   sign(ctx: RequestContext, payload: SignedPayload, exp: number): string {
     return this.hmac(payload, exp, ctx.channel.token);
   }

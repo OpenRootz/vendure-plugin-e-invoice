@@ -5,9 +5,15 @@ import { EInvoiceFormat } from '../core';
 
 import { EInvoice } from './e-invoice.entity';
 
-/** A rendered file of an invoice (ZUGFeRD PDF, XRechnung XML). */
+/**
+ * A rendered file of an invoice (ZUGFeRD PDF, XRechnung XML). The content is kept by the configured
+ * {@link InvoiceStorageStrategy} under `storageId`.
+ *
+ * @category Entities
+ */
 @Entity('e_invoice_file')
 export class EInvoiceFile extends VendureEntity {
+  /** @internal */
   constructor(input?: DeepPartial<EInvoiceFile>) {
     super(input);
   }

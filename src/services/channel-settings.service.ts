@@ -33,8 +33,15 @@ export const MAX_LOGO_BYTES = 2 * 1024 * 1024;
 const EXEMPT_CATEGORIES = ['E', 'AE', 'K', 'G', 'O'];
 const ZERO_RATE_CATEGORIES = ['Z', 'E', 'AE', 'K', 'G', 'O'];
 
+/**
+ * The e-invoicing settings of a channel ({@link EInvoiceChannelSettings}): seller data, payment terms, PDF layout,
+ * enabled / auto-issue, and the setup status.
+ *
+ * @category Services
+ */
 @Injectable()
 export class ChannelSettingsService {
+  /** @internal */
   constructor(
     @Inject(PLUGIN_INIT_OPTIONS) private options: ResolvedEInvoicePluginOptions,
     private connection: TransactionalConnection,
@@ -58,6 +65,10 @@ export class ChannelSettingsService {
     return settings;
   }
 
+  /**
+   * Updates the settings of the current channel. Only the given parts are replaced; a layout is validated with
+   * {@link ChannelSettingsService.assertValidLayout}.
+   */
   async update(ctx: RequestContext, input: UpdateChannelSettingsInput): Promise<EInvoiceChannelSettings> {
     const settings = await this.get(ctx);
     if (input.enabled !== undefined && input.enabled !== null) settings.enabled = input.enabled;

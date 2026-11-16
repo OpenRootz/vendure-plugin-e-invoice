@@ -53,10 +53,19 @@ export interface ManualCreditNoteInput {
   note?: string;
 }
 
+/**
+ * Issues, finds and corrects invoices and credit notes. Automatic issuing (order state changes, refunds) runs
+ * through this service as well; use it from your own plugins, e.g. to issue an invoice for a custom trigger.
+ *
+ * All methods work on the channel of the `ctx`.
+ *
+ * @category Services
+ */
 @Injectable()
 export class InvoiceService implements OnApplicationBootstrap {
   private queue: JobQueue<JobData>;
 
+  /** @internal */
   constructor(
     @Inject(PLUGIN_INIT_OPTIONS) private options: ResolvedEInvoicePluginOptions,
     private connection: TransactionalConnection,
@@ -70,6 +79,7 @@ export class InvoiceService implements OnApplicationBootstrap {
     private listQueryBuilder: ListQueryBuilder,
   ) {}
 
+  /** @internal */
   async onApplicationBootstrap() {
     this.queue = await this.jobQueueService.createQueue<JobData>({
       name: E_INVOICE_QUEUE,
@@ -103,6 +113,7 @@ export class InvoiceService implements OnApplicationBootstrap {
     });
   }
 
+  /** An invoice or credit note of the current channel, with its files. */
   findOne(ctx: RequestContext, id: ID): Promise<EInvoice | null> {
     return this.connection.getRepository(ctx, EInvoice).findOne({
       where: { id, channelId: ctx.channelId },
@@ -124,6 +135,7 @@ export class InvoiceService implements OnApplicationBootstrap {
     return { items, totalItems };
   }
 
+  /** All documents of an order, with their files, in the order they were created. */
   findByOrder(ctx: RequestContext, orderId: ID): Promise<EInvoice[]> {
     return this.connection.getRepository(ctx, EInvoice).find({
       where: { orderId, channelId: ctx.channelId },
@@ -272,20 +284,26 @@ export class InvoiceService implements OnApplicationBootstrap {
     }
   }
 
-  /** Invoice total minus its credit notes. */
+  /** Invoice total minus its credit notes (gross, in minor units). */
   remainingAmount(ctx: RequestContext, invoice: EInvoice) {
     return this.creditNotes.remainingAmount(ctx, invoice);
   }
 
+  /** What of an invoice can still be credited; `undefined` for credit notes and documents without a snapshot. */
   creditable(ctx: RequestContext, invoice: EInvoice) {
     return this.creditNotes.creditable(ctx, invoice);
   }
 
+  /** The credit notes of an invoice, in the order they were created. */
   creditNotesOf(ctx: RequestContext, invoiceId: ID) {
     return this.creditNotes.creditNotesOf(ctx, invoiceId);
   }
 
-  /** Credit note for a settled refund (job). */
+  /**
+   * Credit note for a settled refund. Called by the job queue.
+   *
+   * @internal
+   */
   async creditRefund(ctx: RequestContext, refundId: ID): Promise<EInvoice | undefined> {
     const settings = await this.settings.get(ctx);
     if (!settings.enabled) return undefined;
