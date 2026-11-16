@@ -4,6 +4,7 @@ export * from './model';
 export * from './money';
 export * from './calculate';
 export * from './checks';
+export * from './seller-format';
 export * from './credit-note';
 export * from './sample';
 export * from './xml';

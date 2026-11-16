@@ -417,6 +417,8 @@ export const adminApiExtensions = gql`
     eInvoiceChannelSettings: EInvoiceChannelSettings!
     "What is missing before invoices can be issued in this channel (seller data, tax categories, ...)"
     eInvoiceSetupStatus: [EInvoiceIssue!]!
+    "Seller data that looks wrong (country code, VAT ID, IBAN, BIC, email). Does not block issuing."
+    eInvoiceSetupWarnings: [EInvoiceIssue!]!
     "Renders the invoice the order would get now, with a draft number. Nothing is saved and no number is used. Also requires ReadOrder."
     eInvoicePreview(orderId: ID!): EInvoicePreview!
     "Renders a draft layout with sample data (or an order) through the real PDF pipeline. Nothing is saved. Rendering an order also requires ReadOrder."

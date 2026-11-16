@@ -17,6 +17,8 @@ First release.
   custom pdfmake layout via `InvoicePdfStrategy`
 - Admin API: invoice list, preview, setup status, retry, void, settings; Shop API: issued documents of the
   customer's orders
+- Format warnings for the seller data (`eInvoiceSetupWarnings`, shown on the settings page): country code, EU VAT ID
+  structure, IBAN length and check digits, BIC, email addresses. Saving normalizes country code, VAT ID, IBAN and BIC
 - Permissions `CreateEInvoice`, `ReadEInvoice` and `UpdateEInvoice`, with descriptions for the role editor; there
   is no delete permission, as issued documents are never deleted
 - Signed, time-limited download links, guest links and ZIP export; files are checked against their SHA-256

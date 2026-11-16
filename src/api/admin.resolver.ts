@@ -72,6 +72,12 @@ export class EInvoiceAdminResolver {
 
   @Query()
   @Allow(eInvoicePermission.Read)
+  eInvoiceSetupWarnings(@Ctx() ctx: RequestContext) {
+    return this.settings.setupWarnings(ctx);
+  }
+
+  @Query()
+  @Allow(eInvoicePermission.Read)
   eInvoicePreview(@Ctx() ctx: RequestContext, @Args() args: { orderId: ID }) {
     assertCanReadOrders(ctx);
     return this.invoices.preview(ctx, args.orderId);

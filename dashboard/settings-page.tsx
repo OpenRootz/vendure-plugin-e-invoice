@@ -150,6 +150,7 @@ export function SettingsPage() {
 
   if (isLoading) return null;
   const setupIssues = data?.eInvoiceSetupStatus ?? [];
+  const setupWarnings = data?.eInvoiceSetupWarnings ?? [];
   const dirty = !!data && JSON.stringify(toInput(settings)) !== JSON.stringify(toInput(data.eInvoiceChannelSettings));
 
   return (
@@ -172,6 +173,14 @@ export function SettingsPage() {
         {setupIssues.length > 0 && (
           <PageBlock column="main" blockId="e-invoice-setup-status" title="Before invoices can be issued">
             <IssueList issues={setupIssues} />
+          </PageBlock>
+        )}
+        {setupWarnings.length > 0 && (
+          <PageBlock column="main" blockId="e-invoice-setup-warnings" title="Please check">
+            <p className="mb-2 text-sm text-muted-foreground">
+              These values look wrong. They do not block invoices, but they are printed on every invoice.
+            </p>
+            <IssueList issues={setupWarnings} />
           </PageBlock>
         )}
         <PageBlock column="side" blockId="e-invoice-general" title="General">

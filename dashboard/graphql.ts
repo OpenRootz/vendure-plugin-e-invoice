@@ -423,12 +423,21 @@ const SETTINGS_FIELDS = `
   }
 `;
 
-export const settingsDocument = doc<{ eInvoiceChannelSettings: ChannelSettings; eInvoiceSetupStatus: EInvoiceIssue[] }>(`
+export const settingsDocument = doc<{
+  eInvoiceChannelSettings: ChannelSettings;
+  eInvoiceSetupStatus: EInvoiceIssue[];
+  eInvoiceSetupWarnings: EInvoiceIssue[];
+}>(`
   query EInvoiceSettings {
     eInvoiceChannelSettings {
       ${SETTINGS_FIELDS}
     }
     eInvoiceSetupStatus {
+      code
+      message
+      path
+    }
+    eInvoiceSetupWarnings {
       code
       message
       path
