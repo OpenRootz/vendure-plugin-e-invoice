@@ -123,7 +123,10 @@ E-invoicing is **off** per channel until you enable it.
    (card), `58` (SEPA credit transfer), `59` (SEPA direct debit), `68` (online payment service). Default: `ZZZ`
    with the method name.
 4. **Enable** e-invoicing for the channel. `eInvoiceSetupStatus` (shown on the settings page) lists anything that
-   is still missing.
+   is still missing. `eInvoiceSetupWarnings` (also shown there) lists seller data that looks wrong: a country code
+   that is not ISO 3166-1, a VAT ID that does not match the format of its EU member state, an IBAN with a wrong
+   length or check digits, a malformed BIC or email address. Warnings do not block invoices, but the values are
+   printed on every invoice. Saving the settings upper-cases country code, VAT ID, IBAN and BIC and removes spaces.
 5. Optionally design the PDF in the layout editor (Settings → Invoice layout): logo, colors, texts, block positions.
 
 ## How it works
@@ -299,6 +302,7 @@ so `createEInvoiceGuestLink` needs `CreateEInvoice`; links that expire after min
 | `eInvoiceLayoutPreview(input)`                              | renders an unsaved layout (and unsaved seller data) with sample data or an order; returns the PDF, page count, where every block ended up and the layout issues |
 | `eInvoiceDefaultLayout(preset)`                             | a layout document to start from: default, DIN 5008 Form A/B, minimal                                                                                            |
 | `eInvoiceSetupStatus`                                       | what is missing in the channel                                                                                                                                  |
+| `eInvoiceSetupWarnings`                                     | seller data that looks wrong (country code, VAT ID, IBAN, BIC, email); does not block issuing                                                                   |
 | `eInvoiceChannelSettings` / `updateEInvoiceChannelSettings` | seller, payment terms, layout (rejected if the layout checks report errors)                                                                                     |
 | `createEInvoice(orderId)`                                   | manual invoice; returns a BLOCKED invoice with `issues` if data is missing                                                                                      |
 | `retryEInvoice(id)`                                         | BLOCKED: map the order again; FAILED: render again                                                                                                              |

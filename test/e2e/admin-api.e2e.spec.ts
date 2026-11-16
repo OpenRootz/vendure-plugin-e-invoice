@@ -29,6 +29,16 @@ const SETUP_STATUS = gql`
   }
 `;
 
+const SETUP_WARNINGS = gql`
+  query {
+    eInvoiceSetupWarnings {
+      code
+      message
+      path
+    }
+  }
+`;
+
 const SETTINGS = gql`
   fragment Settings on EInvoiceChannelSettings {
     enabled
@@ -191,6 +201,38 @@ describe('Admin API', () => {
     const { eInvoiceSetupStatus } = await adminClient.query(SETUP_STATUS);
     // one 0 % rate per zone, all without a VAT category
     expect([...new Set(eInvoiceSetupStatus.map((i: { code: string }) => i.code))]).toEqual(['TAX_CATEGORY_MISSING']);
+  });
+
+  it('normalizes codes on save and warns about seller data that looks wrong, without blocking', async () => {
+    const seller = SELLER_SETTINGS.seller;
+    const { updateEInvoiceChannelSettings } = await adminClient.query(UPDATE, {
+      input: {
+        seller: {
+          ...seller,
+          address: { ...seller.address, countryCode: ' de ' },
+          vatId: 'de 123456789',
+          bank: { ...seller.bank, iban: 'de02 1203 0000 0000 2020 51', bic: 'byladem1001' },
+        },
+      },
+    });
+    expect(updateEInvoiceChannelSettings.seller).toMatchObject({
+      address: { countryCode: 'DE' },
+      vatId: 'DE123456789',
+      bank: { iban: 'DE02120300000000202051', bic: 'BYLADEM1001' },
+    });
+    expect((await adminClient.query(SETUP_WARNINGS)).eInvoiceSetupWarnings).toEqual([]);
+
+    await adminClient.query(UPDATE, {
+      input: { seller: { ...seller, vatId: 'DE12345', bank: { ...seller.bank, iban: 'DE00 1234 5678' } } },
+    });
+    const { eInvoiceSetupWarnings } = await adminClient.query(SETUP_WARNINGS);
+    expect(eInvoiceSetupWarnings.map((w: { code: string }) => w.code)).toEqual(['SELLER_VAT_ID_INVALID', 'SELLER_IBAN_INVALID']);
+    expect(eInvoiceSetupWarnings[1].path).toBe('seller.bank.iban');
+    // Warnings do not appear in the setup status, which lists what blocks issuing
+    const { eInvoiceSetupStatus } = await adminClient.query(SETUP_STATUS);
+    expect([...new Set(eInvoiceSetupStatus.map((i: { code: string }) => i.code))]).toEqual(['TAX_CATEGORY_MISSING']);
+
+    await adminClient.query(UPDATE, { input: { seller } });
   });
 
   it('previews the invoice of an order without saving it or using a number', async () => {

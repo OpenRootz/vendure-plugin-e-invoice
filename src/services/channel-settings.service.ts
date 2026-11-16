@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { Asset, ConfigService, ID, RequestContext, TaxRate, TransactionalConnection, UserInputError } from '@vendure/core';
 
 import { PLUGIN_INIT_OPTIONS } from '../constants';
-import { checkSeller, isLayoutV2, layoutFromV1, PdfLayout } from '../core';
+import { checkSeller, checkSellerFormats, isLayoutV2, layoutFromV1, normalizeCode, PdfLayout } from '../core';
 import { EInvoiceChannelSettings, LayoutSettings, LegacyLayoutSettings, PaymentSettings, SellerSettings } from '../entities';
 import { ResolvedEInvoicePluginOptions } from '../options';
 import { ChannelSettingsSellerStrategy, sellerFromSettings } from '../strategies/seller-data-strategy';
@@ -73,7 +73,7 @@ export class ChannelSettingsService {
     const settings = await this.get(ctx);
     if (input.enabled !== undefined && input.enabled !== null) settings.enabled = input.enabled;
     if (input.autoIssue !== undefined && input.autoIssue !== null) settings.autoIssue = input.autoIssue;
-    if (input.seller) settings.seller = compact(input.seller);
+    if (input.seller) settings.seller = normalizeSeller(compact(input.seller));
     if (input.payment) settings.payment = compact(input.payment);
     if (input.layout) {
       // The resolver validates the layout completely (LayoutPreviewService.prepareLayout); this is the minimum
@@ -100,6 +100,17 @@ export class ChannelSettingsService {
       if (asset && asset.fileSize > MAX_LOGO_BYTES) problems.push(`${what} is larger than ${MAX_LOGO_BYTES / 1024 / 1024} MB`);
     }
     if (problems.length) throw new UserInputError(`Invalid layout: ${problems.join('; ')}`);
+  }
+
+  /**
+   * Seller data that is present but looks wrong (country code, VAT ID, IBAN, BIC, email). Warnings do not block
+   * issuing; they are shown in the settings, since the values end up on every invoice.
+   */
+  async setupWarnings(ctx: RequestContext): Promise<SetupIssue[]> {
+    // Custom seller strategies get their data elsewhere; only the default reads the settings
+    if (!(this.options.sellerStrategy instanceof ChannelSettingsSellerStrategy)) return [];
+    const settings = await this.get(ctx);
+    return checkSellerFormats(sellerFromSettings(settings.seller), settings.seller.bank);
   }
 
   /**
@@ -158,6 +169,19 @@ export class ChannelSettingsService {
     }
     return issues;
   }
+}
+
+/** Upper case without spaces for country code, VAT ID, IBAN and BIC (the PDF prints the IBAN grouped). */
+export function normalizeSeller(seller: SellerSettings): SellerSettings {
+  const { address, bank, vatId } = seller;
+  return {
+    ...seller,
+    ...(address?.countryCode && { address: { ...address, countryCode: normalizeCode(address.countryCode) } }),
+    ...(vatId && { vatId: normalizeCode(vatId) }),
+    ...(bank && {
+      bank: { ...bank, ...(bank.iban && { iban: normalizeCode(bank.iban) }), ...(bank.bic && { bic: normalizeCode(bank.bic) }) },
+    }),
+  };
 }
 
 /** v1 layouts (and none) become the v2 default layout with the v1 values. */
