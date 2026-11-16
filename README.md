@@ -11,7 +11,7 @@ EN 16931 e-invoicing for [Vendure](https://vendure.io) v3. The plugin issues **Z
 credit notes for refunds and cancellations, signed downloads for admins and customers, and a dashboard extension
 with a visual invoice layout editor.
 
-![The invoice layout editor in the Vendure dashboard](docs/images/layout-editor.png)
+![The invoice layout editor in the Vendure dashboard](https://raw.githubusercontent.com/OpenRootz/vendure-plugin-e-invoice/main/docs/images/layout-editor.png)
 
 ## Why
 
@@ -45,9 +45,9 @@ This plugin does that inside Vendure, without a browser, a Java runtime or an ex
 - **Extensible**: strategies for numbering, seller and buyer data, formats, PDF, storage and validation, plus
   mapping hooks for the invoice model.
 
-| ZUGFeRD PDF (sample)                                        | Settings and setup status                                        |
-| ----------------------------------------------------------- | ---------------------------------------------------------------- |
-| ![A German ZUGFeRD sample invoice](docs/images/invoice.png) | ![E-invoice settings in the dashboard](docs/images/settings.png) |
+| ZUGFeRD PDF (sample)                                                                                                                  | Settings and setup status                                                                                                                  |
+| ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| ![A German ZUGFeRD sample invoice](https://raw.githubusercontent.com/OpenRootz/vendure-plugin-e-invoice/main/docs/images/invoice.png) | ![E-invoice settings in the dashboard](https://raw.githubusercontent.com/OpenRootz/vendure-plugin-e-invoice/main/docs/images/settings.png) |
 
 ## Contents
 
@@ -390,7 +390,19 @@ The plugin ships an extension for the React dashboard (`@vendure/dashboard`), co
   cannot be hidden when they are its last carrier; saving is disabled while the layout checks report errors.
 - The custom fields appear in the `E-Invoice` tab of orders, customers, tax rates and payment methods.
 
-No extra configuration is needed: `vendureDashboardPlugin` finds the extension through the plugin metadata.
+With npm no extra configuration is needed: `vendureDashboardPlugin` finds the extension through the plugin metadata.
+
+With pnpm (and other installs that do not hoist packages into the top-level `node_modules`), tell the dashboard build
+where your packages are. Without it the build succeeds, but reports `found 0 dashboard extensions` and the e-invoice
+pages are missing:
+
+```ts
+// vite.config.mts
+vendureDashboardPlugin({
+  // ...
+  pluginPackageScanner: { nodeModulesRoot: join(__dirname, 'node_modules') },
+});
+```
 
 There is no extension for the legacy Angular Admin UI. Shops that still use it can work with the Admin API
 directly; invoices are issued automatically either way.
