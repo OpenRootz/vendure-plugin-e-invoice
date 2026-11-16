@@ -4,6 +4,11 @@ import { Column, Entity, Index } from 'typeorm';
 import { Address, Contact, ElectronicAddress, PdfLayout, PdfLayoutV2 } from '../core';
 import { BankAccount } from '../strategies/types';
 
+/**
+ * Seller data stored in the e-invoice settings of a channel; read by the {@link ChannelSettingsSellerStrategy}.
+ *
+ * @category Entities
+ */
 export interface SellerSettings {
   name?: string;
   tradingName?: string;
@@ -17,6 +22,11 @@ export interface SellerSettings {
   bank?: BankAccount;
 }
 
+/**
+ * Payment terms stored in the e-invoice settings of a channel.
+ *
+ * @category Entities
+ */
 export interface PaymentSettings {
   /** BT-20 payment terms for amounts that are still due, e.g. "Zahlbar innerhalb von 14 Tagen ohne Abzug." */
   termsText?: string;
@@ -24,16 +34,30 @@ export interface PaymentSettings {
   termDays?: number;
 }
 
-/** The stored layout: the layout document (v2) with the logo asset. */
+/**
+ * The stored layout: the layout document (v2) with the logo asset.
+ *
+ * @category Entities
+ */
 export type LayoutSettings = PdfLayoutV2 & { logoAssetId?: ID };
 
-/** Layouts stored before the layout editor (v1): accent color and texts; converted when read. */
+/**
+ * Layouts stored before the layout editor (v1): accent color and texts; converted when read.
+ *
+ * @category Entities
+ */
 export type LegacyLayoutSettings = PdfLayout & { logoAssetId?: ID };
 
-/** E-invoicing settings of a channel: seller data, payment terms and PDF layout. */
+/**
+ * E-invoicing settings of a channel: seller data, payment terms and PDF layout. Edited in the dashboard
+ * (Settings → E-Invoices) or through {@link ChannelSettingsService}.
+ *
+ * @category Entities
+ */
 @Entity('e_invoice_channel_settings')
 @Index(['channelId'], { unique: true })
 export class EInvoiceChannelSettings extends VendureEntity {
+  /** @internal */
   constructor(input?: DeepPartial<EInvoiceChannelSettings>) {
     super(input);
   }

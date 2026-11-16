@@ -70,18 +70,27 @@ export function orderFingerprint(order: Order): string {
   return createHash('sha256').update(JSON.stringify(data)).digest('hex');
 }
 
+/**
+ * Result of {@link OrderModelMapper.toModel}.
+ *
+ * @category Mapping
+ */
 export interface MappedOrder {
   /** Model without number; totals not yet calculated */
   model: EInvoiceModel;
+  /** Formats decided by the {@link InvoiceFormatStrategy} */
   formats: EInvoiceFormat[];
 }
 
 /**
  * Turns a Vendure order into the neutral invoice model, using the configured strategies and mapping hooks.
  * Returns `undefined` when the order's channel has no seller data (e-invoicing not set up).
+ *
+ * @category Services
  */
 @Injectable()
 export class OrderModelMapper {
+  /** @internal */
   constructor(
     @Inject(PLUGIN_INIT_OPTIONS) private options: ResolvedEInvoicePluginOptions,
     private connection: TransactionalConnection,
@@ -98,6 +107,10 @@ export class OrderModelMapper {
     return order ? sortOrderRelations(order) : undefined;
   }
 
+  /**
+   * Maps an order loaded with {@link OrderModelMapper.loadOrder} to the invoice model (without number and totals)
+   * and the formats to render. `undefined` when the channel has no seller data.
+   */
   async toModel(ctx: RequestContext, order: Order, issueDate: IsoDate = this.today()): Promise<MappedOrder | undefined> {
     const { mapping } = this.options;
     const seller = await this.options.sellerStrategy.getSeller(ctx, order);
@@ -138,6 +151,7 @@ export class OrderModelMapper {
     return { model, formats };
   }
 
+  /** Today's date in the configured `timeZone`. */
   today(): IsoDate {
     return isoDateInZone(new Date(), this.options.timeZone);
   }

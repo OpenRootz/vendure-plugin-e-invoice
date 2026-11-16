@@ -5,7 +5,11 @@ import { BuyerData, SellerData } from '../strategies/types';
 
 import { mappingLabels } from './labels';
 
-/** Everything the model builder needs besides the order; resolved by {@link OrderModelMapper}. */
+/**
+ * Everything the model builder needs besides the order; resolved by {@link OrderModelMapper}.
+ *
+ * @category Mapping
+ */
 export interface BuildModelInput {
   /** Order with `lines.productVariant`, `shippingLines.shippingMethod`, `surcharges` and `payments` loaded */
   order: Order;
@@ -40,6 +44,8 @@ export interface BuildModelInput {
  *   in gross-price channels, a rounding allowance or charge, so BT-131 = qty × price − allowances + charges holds exactly.
  * - Shipping lines become document-level charges (`FC`); surcharges become charges, negative ones allowances.
  * - Settled payments are the prepaid amount (BT-113), at most the order total.
+ *
+ * @category Mapping
  */
 export function buildModel(input: BuildModelInput): EInvoiceModel {
   const { order } = input;

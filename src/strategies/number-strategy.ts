@@ -2,19 +2,50 @@ import { RequestContext } from '@vendure/core';
 
 import { InvoiceNumberStrategy, NumberInput } from './types';
 
+/**
+ * Options of the {@link DefaultInvoiceNumberStrategy}.
+ *
+ * @category Strategies
+ */
 export interface DefaultInvoiceNumberStrategyOptions {
-  /** Default: `RE` */
+  /**
+   * Prefix of invoice numbers.
+   *
+   * @default 'RE'
+   */
   invoicePrefix?: string;
-  /** Default: `GS` */
+  /**
+   * Prefix of credit note numbers.
+   *
+   * @default 'GS'
+   */
   creditNotePrefix?: string;
-  /** Minimum number of digits of the counter. Default: `5` */
+  /**
+   * Minimum number of digits of the counter.
+   *
+   * @default 5
+   */
   padding?: number;
-  /** Start a new counter every year. Default: `true` */
+  /**
+   * Start a new counter every year (the year becomes part of the number).
+   *
+   * @default true
+   */
   yearly?: boolean;
 }
 
 /**
  * Numbers like `RE-2026-00001` / `GS-2026-00001`, one counter per channel, document type and year.
+ *
+ * @example
+ * ```ts
+ * EInvoicePlugin.init({
+ *   secret: process.env.E_INVOICE_SECRET!,
+ *   numberStrategy: new DefaultInvoiceNumberStrategy({ invoicePrefix: 'INV', creditNotePrefix: 'CN' }),
+ * });
+ * ```
+ *
+ * @category Strategies
  */
 export class DefaultInvoiceNumberStrategy implements InvoiceNumberStrategy {
   private readonly options: Required<DefaultInvoiceNumberStrategyOptions>;

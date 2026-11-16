@@ -22,7 +22,14 @@ const update = new PermissionDefinition({
 
 export const eInvoicePermissionDefinitions = [create, read, update];
 
-/** CreateEInvoice, ReadEInvoice, UpdateEInvoice (retry, void, settings) */
+/**
+ * The plugin's permissions, e.g. for custom resolvers (`@Allow(eInvoicePermission.Read)`):
+ * - `CreateEInvoice`: issue invoices and credit notes, create guest links
+ * - `ReadEInvoice`: view and download invoices and credit notes
+ * - `UpdateEInvoice`: retry and void documents, change the e-invoice settings and layout
+ *
+ * @category Plugin
+ */
 export const eInvoicePermission = {
   Create: create.Permission,
   Read: read.Permission,

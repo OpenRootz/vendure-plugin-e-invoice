@@ -34,6 +34,19 @@ import { InvoiceRenderService } from './services/invoice-render.service';
 import { InvoiceService } from './services/invoice.service';
 import { LayoutPreviewService } from './services/layout-preview.service';
 
+/**
+ * EN 16931 e-invoicing for Vendure: issues invoices and credit notes for orders as ZUGFeRD / Factur-X (PDF/A-3
+ * with embedded CII XML) and XRechnung (CII or UBL), with gap-free numbering, immutable snapshots, signed download
+ * links and a dashboard extension.
+ *
+ * Adds the entities `EInvoice`, `EInvoiceFile`, `EInvoiceSequence`, `EInvoiceChannelSettings` and `EInvoiceBlob`,
+ * custom fields on Customer, Order, TaxRate and PaymentMethod, the permissions `CreateEInvoice`, `ReadEInvoice`
+ * and `UpdateEInvoice`, Admin and Shop API extensions and the download route `/e-invoice`.
+ *
+ * Configure it with {@link EInvoicePlugin.init}.
+ *
+ * @category Plugin
+ */
 @VendurePlugin({
   imports: [PluginCommonModule],
   entities: [EInvoice, EInvoiceFile, EInvoiceSequence, EInvoiceChannelSettings, EInvoiceBlob],
@@ -74,15 +87,37 @@ import { LayoutPreviewService } from './services/layout-preview.service';
   compatibility: '^3.8.0',
 })
 export class EInvoicePlugin implements OnApplicationBootstrap, OnApplicationShutdown {
+  /** @internal */
   static options: ResolvedEInvoicePluginOptions;
 
+  /** @internal */
   constructor(private moduleRef: ModuleRef) {}
 
+  /**
+   * Configures the plugin. Only `secret` is required; everything else has a default.
+   *
+   * @example
+   * ```ts
+   * // vendure-config.ts
+   * import { EInvoicePlugin } from '@openrootz/vendure-plugin-e-invoice';
+   *
+   * export const config: VendureConfig = {
+   *   // ...
+   *   plugins: [
+   *     EInvoicePlugin.init({
+   *       // Signs download links. At least 32 characters; keep it secret and stable.
+   *       secret: process.env.E_INVOICE_SECRET!,
+   *     }),
+   *   ],
+   * };
+   * ```
+   */
   static init(options: EInvoicePluginOptions): Type<EInvoicePlugin> {
     this.options = resolveOptions(options);
     return EInvoicePlugin;
   }
 
+  /** @internal */
   async onApplicationBootstrap() {
     const { validation } = EInvoicePlugin.options;
     if (validation.mode !== 'off' && validation.validator instanceof NoopValidator) {
@@ -94,6 +129,7 @@ export class EInvoicePlugin implements OnApplicationBootstrap, OnApplicationShut
     }
   }
 
+  /** @internal */
   async onApplicationShutdown() {
     for (const strategy of this.strategies()) {
       await strategy.destroy?.();
