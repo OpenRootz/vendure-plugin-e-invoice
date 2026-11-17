@@ -24,6 +24,20 @@ export interface EInvoiceFile {
   downloadUrl: string;
 }
 
+export type EInvoiceDeliveryStatus = 'QUEUED' | 'RETRYING' | 'SENT' | 'FAILED';
+
+export interface EInvoiceDelivery {
+  id: string;
+  createdAt: string;
+  status: EInvoiceDeliveryStatus;
+  trigger: string;
+  recipient: string;
+  attempts: number;
+  linkOnly: boolean;
+  errorMessage: string | null;
+  sentAt: string | null;
+}
+
 export interface EInvoiceRow {
   id: string;
   createdAt: string;
@@ -45,6 +59,8 @@ export interface EInvoiceRow {
     error: string | null;
     results: { format: EInvoiceFormat; valid: boolean; messages: { level: string; code: string | null; text: string }[] }[];
   } | null;
+  /** Only in the order block */
+  deliveries?: EInvoiceDelivery[];
 }
 
 export interface EInvoiceCreditable {
@@ -103,6 +119,18 @@ const INVOICE_FIELDS = `
   }
 `;
 
+const DELIVERY_FIELDS = `
+  id
+  createdAt
+  status
+  trigger
+  recipient
+  attempts
+  linkOnly
+  errorMessage
+  sentAt
+`;
+
 export const orderEInvoicesDocument = doc<
   { order: { id: string; code: string; state: string; eInvoices: EInvoiceRow[] } | null },
   { id: string }
@@ -114,7 +142,18 @@ export const orderEInvoicesDocument = doc<
       state
       eInvoices {
         ${INVOICE_FIELDS}
+        deliveries {
+          ${DELIVERY_FIELDS}
+        }
       }
+    }
+  }
+`);
+
+export const sendDocument = doc<{ sendEInvoice: EInvoiceDelivery }, { id: string; recipient?: string | null }>(`
+  mutation SendEInvoice($id: ID!, $recipient: String) {
+    sendEInvoice(id: $id, recipient: $recipient) {
+      ${DELIVERY_FIELDS}
     }
   }
 `);
@@ -369,6 +408,7 @@ export interface SellerSettings {
 export interface ChannelSettings {
   enabled: boolean;
   autoIssue: boolean;
+  delivery: { enabled: boolean; bcc?: string | null };
   seller: SellerSettings;
   payment: { termsText?: string | null; termDays?: number | null };
   layout: {
@@ -381,6 +421,10 @@ export interface ChannelSettings {
 const SETTINGS_FIELDS = `
   enabled
   autoIssue
+  delivery {
+    enabled
+    bcc
+  }
   seller {
     name
     tradingName

@@ -7,3 +7,4 @@ export * from './storage-strategy';
 export * from './types';
 export * from './validator';
 export * from './local-file-storage-strategy';
+export * from './email-plugin-delivery-strategy';

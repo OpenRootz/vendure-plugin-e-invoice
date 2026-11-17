@@ -29,10 +29,29 @@
   ],
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./email": {
+      "types": "./dist/email/index.d.ts",
+      "default": "./dist/email/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "typesVersions": {
+    "*": {
+      "email": [
+        "dist/email/index.d.ts"
+      ]
+    }
+  },
   "files": [
     "dist",
     "dashboard",
     "!dashboard/tsconfig.json",
+    "templates",
     "README.md",
     "CHANGELOG.md",
     "LICENSE"
@@ -60,10 +79,14 @@
   },
   "peerDependencies": {
     "@vendure/core": "^3.8.0",
-    "@vendure/dashboard": "^3.8.0"
+    "@vendure/dashboard": "^3.8.0",
+    "@vendure/email-plugin": "^3.8.0"
   },
   "peerDependenciesMeta": {
     "@vendure/dashboard": {
+      "optional": true
+    },
+    "@vendure/email-plugin": {
       "optional": true
     }
   },
@@ -80,6 +103,7 @@
     "@vendure/asset-server-plugin": "3.8.1",
     "@vendure/core": "3.8.1",
     "@vendure/dashboard": "3.8.1",
+    "@vendure/email-plugin": "3.8.1",
     "@vendure/testing": "3.8.1",
     "eslint": "^10.14.0",
     "eslint-config-prettier": "^10.1.8",

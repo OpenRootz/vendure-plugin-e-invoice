@@ -1,26 +1,46 @@
 // Local dev server: fresh Postgres DB (docker compose) seeded with a German shop (EUR, German) + the plugin.
 //   pnpm db:up && pnpm dev     → http://localhost:3050/admin-api, /shop-api
 //   pnpm dashboard:build first → the dashboard with the plugin's extension at /dashboard
+//   Emails (sending of documents) land in the dev mailbox at /mailbox
 // Set TEST_DB=sqljs to run without Docker.
 process.env.TEST_DB ??= 'postgres';
 
 import { AssetServerPlugin } from '@vendure/asset-server-plugin';
 import { DefaultLogger, DefaultSearchPlugin, LogLevel } from '@vendure/core';
 import { DashboardPlugin } from '@vendure/dashboard/plugin';
+import { EmailPlugin, FileBasedTemplateLoader } from '@vendure/email-plugin';
 import fs from 'fs';
 import path from 'path';
 import { createTestEnvironment, SimpleGraphQLClient } from '@vendure/testing';
 import gql from 'graphql-tag';
 
+import { eInvoiceDeliveryHandler } from '../src/email';
+
+import { prepareEmailTemplates } from './email-templates';
 import { initialData } from './fixtures/initial-data';
 import { createConfig, fixtures } from './helpers';
 
 (async () => {
-  const config = createConfig({}, { logger: new DefaultLogger({ level: LogLevel.Info }) });
+  const port = Number(process.env.TEST_PORT ?? 3050);
+  const config = createConfig(
+    // Emails are sent from jobs, outside of a request: links need the public URL
+    { downloadLinks: { baseUrl: `http://localhost:${port}` } },
+    { logger: new DefaultLogger({ level: LogLevel.Info }) },
+  );
   // The dashboard's global search and product lists need a search plugin
   config.plugins.push(DefaultSearchPlugin.init({ bufferUpdates: false }));
   // Real asset storage (the test config keeps no files), so logos can be uploaded and rendered
   config.plugins.push(AssetServerPlugin.init({ route: 'assets', assetUploadDir: path.join(__dirname, '__output__/assets') }));
+  config.plugins.push(
+    EmailPlugin.init({
+      devMode: true,
+      route: 'mailbox',
+      outputPath: path.join(__dirname, '__output__/emails'),
+      handlers: [eInvoiceDeliveryHandler],
+      templateLoader: new FileBasedTemplateLoader(prepareEmailTemplates(path.join(__dirname, '__output__/email-templates'))),
+      globalTemplateVars: { fromAddress: '"Demo Shop" <noreply@example.com>' },
+    }),
+  );
   const dashboardDir = path.join(__dirname, '__output__/dashboard');
   if (fs.existsSync(path.join(dashboardDir, 'index.html'))) {
     config.plugins.push(DashboardPlugin.init({ route: 'dashboard', appDir: dashboardDir }));
@@ -29,7 +49,9 @@ import { createConfig, fixtures } from './helpers';
   await server.init({ initialData, productsCsvPath: fixtures.productsCsvPath, customerCount: 5 });
   await useGermanChannel(adminClient);
   console.log(`\nVendure dev server running on http://localhost:${config.apiOptions.port}`);
-  console.log('Admin API: /admin-api  ·  Shop API: /shop-api  ·  Dashboard: /dashboard  ·  superadmin / superadmin\n');
+  console.log(
+    'Admin API: /admin-api  ·  Shop API: /shop-api  ·  Dashboard: /dashboard  ·  Mailbox: /mailbox  ·  superadmin / superadmin\n',
+  );
 })().catch((e) => {
   console.error(e);
   process.exit(1);

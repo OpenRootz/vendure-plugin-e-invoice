@@ -4,6 +4,7 @@ import { RequestContext } from '@vendure/core';
 
 import { parseDuration, resolveOptions } from '../../src/options';
 import { DownloadLinkService } from '../../src/services/download-link.service';
+import { EmailPluginDeliveryStrategy } from '../../src/strategies/email-plugin-delivery-strategy';
 
 describe('resolveOptions', () => {
   it('rejects a missing or short secret', () => {
@@ -87,5 +88,35 @@ describe('DownloadLinkService', () => {
     // The customer's own link goes back to the client that sent the header
     expect(noBase.fileLink(shop, { id: 1 }, 'zugferd', 'owner')).toMatch(/^https:\/\/attacker\.example\//);
     expect(noBase.fileLink(admin, { id: 1 }, 'zugferd', 'guest')).toMatch(/^https:\/\/attacker\.example\//);
+  });
+});
+
+describe('delivery options', () => {
+  const secret = 'x'.repeat(32);
+
+  it('applies defaults', () => {
+    const { delivery } = resolveOptions({ secret });
+    expect(delivery.strategy).toBeInstanceOf(EmailPluginDeliveryStrategy);
+    expect(delivery.autoSend).toEqual({ invoices: true, creditNotes: ['refund', 'cancellation', 'modification', 'reissue', 'manual'] });
+    expect(delivery.maxAttachmentBytes).toBe(5 * 1024 * 1024);
+    expect(delivery.requestLimit).toEqual({ max: 3, window: 3600 });
+  });
+
+  it('takes credit note reasons, true or false', () => {
+    expect(resolveOptions({ secret, delivery: { autoSend: { creditNotes: false } } }).delivery.autoSend.creditNotes).toEqual([]);
+    expect(resolveOptions({ secret, delivery: { autoSend: { creditNotes: ['refund'] } } }).delivery.autoSend.creditNotes).toEqual([
+      'refund',
+    ]);
+    expect(resolveOptions({ secret, delivery: { autoSend: { invoices: false } } }).delivery.autoSend.invoices).toBe(false);
+  });
+
+  it('rejects invalid limits', () => {
+    expect(() => resolveOptions({ secret, delivery: { maxAttachmentBytes: -1 } })).toThrow(/maxAttachmentBytes/);
+    expect(() => resolveOptions({ secret, delivery: { requestLimit: { max: 1.5 } } })).toThrow(/requestLimit.max/);
+    expect(() => resolveOptions({ secret, delivery: { requestLimit: { window: '1 hour' as never } } })).toThrow(/requestLimit.window/);
+    expect(resolveOptions({ secret, delivery: { requestLimit: { max: 0, window: '1d' } } }).delivery.requestLimit).toEqual({
+      max: 0,
+      window: 86400,
+    });
   });
 });

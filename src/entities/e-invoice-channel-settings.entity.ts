@@ -73,6 +73,14 @@ export class EInvoiceChannelSettings extends VendureEntity {
   @Column({ default: true })
   autoIssue: boolean;
 
+  /** Send issued documents to the buyer automatically (option `delivery`); off until enabled */
+  @Column({ default: false })
+  deliveryEnabled: boolean;
+
+  /** Blind copy of every automatic sending, e.g. for the accountant or an archive address */
+  @Column('varchar', { nullable: true })
+  deliveryBcc: string | null;
+
   @Column('simple-json')
   seller: SellerSettings;
 

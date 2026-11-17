@@ -6,6 +6,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  Input,
   Label,
   Money,
   Table,
@@ -28,14 +29,27 @@ import { CreditNoteDialog } from './credit-note-dialog';
 import {
   cancelAndReissueDocument,
   createInvoiceDocument,
+  EInvoiceDelivery,
   EInvoiceIssue,
   EInvoiceRow,
   guestLinkDocument,
   orderEInvoicesDocument,
   previewDocument,
   retryDocument,
+  sendDocument,
   voidDocument,
 } from './graphql';
+
+const deliveryStatusLabel: Record<EInvoiceDelivery['status'], string> = {
+  QUEUED: 'Queued',
+  RETRYING: 'Retrying',
+  SENT: 'Sent',
+  FAILED: 'Failed',
+};
+
+const triggerLabel: Record<string, string> = { auto: 'automatic', manual: 'manual', request: 'requested by the buyer' };
+
+const inProgress = (d: EInvoiceDelivery) => d.status === 'QUEUED' || d.status === 'RETRYING';
 
 type Outcome = Pick<EInvoiceRow, 'status'> & { issues?: Pick<EInvoiceIssue, 'message'>[] };
 
@@ -49,12 +63,14 @@ export function OrderInvoicesBlock({ orderId }: { orderId: string }) {
   const { data, isLoading, error } = useQuery({
     queryKey,
     queryFn: () => api.query(orderEInvoicesDocument, { id: orderId }),
-    // Rendering runs in the background: poll while a document is pending
-    refetchInterval: (query) => (query.state.data?.order?.eInvoices.some((i) => i.status === 'PENDING') ? 2000 : false),
+    // Rendering and sending run in the background: poll while a document is pending or an email is on its way
+    refetchInterval: (query) =>
+      query.state.data?.order?.eInvoices.some((i) => i.status === 'PENDING' || i.deliveries?.some(inProgress)) ? 2000 : false,
   });
   const [creditFor, setCreditFor] = useState<string | undefined>();
   const [voiding, setVoiding] = useState<EInvoiceRow | undefined>();
   const [confirmReissue, setConfirmReissue] = useState<EInvoiceRow | undefined>();
+  const [sending, setSending] = useState<EInvoiceRow | undefined>();
 
   const refresh = () => queryClient.invalidateQueries({ queryKey });
   /**
@@ -162,6 +178,11 @@ export function OrderInvoicesBlock({ orderId }: { orderId: string }) {
                           Copy guest link
                         </Button>
                       )}
+                      {canUpdate && inv.status === 'ISSUED' && (
+                        <Button size="xs" variant="ghost" onClick={() => setSending(inv)}>
+                          Send…
+                        </Button>
+                      )}
                       {canCreate &&
                         inv.type === 'INVOICE' &&
                         inv.number &&
@@ -193,6 +214,13 @@ export function OrderInvoicesBlock({ orderId }: { orderId: string }) {
                     </div>
                   </TableCell>
                 </TableRow>
+                {!!inv.deliveries?.length && (
+                  <TableRow>
+                    <TableCell colSpan={6} className="py-1">
+                      <DeliveryList deliveries={inv.deliveries} />
+                    </TableCell>
+                  </TableRow>
+                )}
                 {(inv.issues.length > 0 || inv.errorMessage || inv.voidReason) && (
                   <TableRow>
                     <TableCell colSpan={6} className="bg-muted/40">
@@ -263,7 +291,77 @@ export function OrderInvoicesBlock({ orderId }: { orderId: string }) {
         </Dialog>
       )}
       {voiding && <VoidDialog invoice={voiding} onClose={() => setVoiding(undefined)} onDone={refresh} />}
+      {sending && <SendDialog invoice={sending} onClose={() => setSending(undefined)} onDone={refresh} />}
     </div>
+  );
+}
+
+/** The sendings of a document, newest first; older ones collapsed. */
+function DeliveryList({ deliveries }: { deliveries: EInvoiceDelivery[] }) {
+  const [all, setAll] = useState(false);
+  const shown = all ? deliveries : deliveries.slice(0, 1);
+  return (
+    <div className="space-y-0.5 text-xs text-muted-foreground">
+      {shown.map((d) => (
+        <div key={d.id}>
+          <span className={d.status === 'FAILED' ? 'text-destructive' : d.status === 'RETRYING' ? 'text-warning' : undefined}>
+            {deliveryStatusLabel[d.status]}
+          </span>
+          {d.recipient && <> to {d.recipient}</>} · {new Date(d.sentAt ?? d.createdAt).toLocaleString()} ·{' '}
+          {triggerLabel[d.trigger] ?? d.trigger}
+          {d.linkOnly && <> · as download links</>}
+          {d.attempts > 1 && <> · {d.attempts} attempts</>}
+          {d.errorMessage && d.status !== 'SENT' && <> · {d.errorMessage}</>}
+        </div>
+      ))}
+      {deliveries.length > 1 && (
+        <button type="button" className="text-primary underline-offset-4 hover:underline" onClick={() => setAll(!all)}>
+          {all ? 'Show less' : `Show all ${deliveries.length} sendings`}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function SendDialog({ invoice, onClose, onDone }: { invoice: EInvoiceRow; onClose: () => void; onDone: () => void }) {
+  const [recipient, setRecipient] = useState(invoice.deliveries?.find((d) => d.recipient)?.recipient ?? '');
+  const mutation = useMutation({
+    mutationFn: () => api.mutate(sendDocument, { id: invoice.id, recipient: recipient.trim() || null }),
+    onSuccess: ({ sendEInvoice }) => {
+      if (sendEInvoice.status === 'FAILED') toast.error('Could not send', { description: sendEInvoice.errorMessage ?? undefined });
+      else toast.success(`${invoice.number} is being sent to ${sendEInvoice.recipient}`);
+      onClose();
+      onDone();
+    },
+    onError: (e) => toast.error('Could not send', { description: errorMessage(e) }),
+  });
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Send {invoice.number}</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm">The document is emailed with its files attached. No BCC is added.</p>
+        <div className="grid gap-1.5">
+          <Label htmlFor="send-recipient">Recipient</Label>
+          <Input
+            id="send-recipient"
+            type="email"
+            placeholder="The buyer's email address"
+            value={recipient}
+            onChange={(e) => setRecipient(e.target.value)}
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button disabled={mutation.isPending} onClick={() => mutation.mutate()}>
+            Send
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

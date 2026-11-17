@@ -1,7 +1,8 @@
-import { Parent, ResolveField, Resolver } from '@nestjs/graphql';
+import { Args, Mutation, Parent, ResolveField, Resolver } from '@nestjs/graphql';
 import { Ctx, Order, RequestContext } from '@vendure/core';
 
 import { EInvoice } from '../entities';
+import { EInvoiceDeliveryService } from '../services/delivery.service';
 import { InvoiceService } from '../services/invoice.service';
 
 /**
@@ -28,5 +29,17 @@ export class EInvoiceShopEntityResolver {
   @ResolveField()
   files(@Parent() invoice: EInvoice) {
     return invoice.files ?? [];
+  }
+}
+
+@Resolver()
+export class EInvoiceShopDeliveryResolver {
+  constructor(private deliveries: EInvoiceDeliveryService) {}
+
+  /** Public. The answer is the same whether or not anything matched, so it cannot be used to probe orders. */
+  @Mutation()
+  async requestInvoiceDownloadLink(@Ctx() ctx: RequestContext, @Args() args: { orderCode: string; emailAddress: string }) {
+    await this.deliveries.requestDocuments(ctx, args.orderCode, args.emailAddress);
+    return { success: true };
   }
 }
