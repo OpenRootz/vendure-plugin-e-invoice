@@ -69,4 +69,18 @@ fine without one.
   `docs:`, `chore:`, … with an optional scope such as `fix(pdf):`).
 - Add a line to `CHANGELOG.md` for user-facing changes.
 
+## Releasing
+
+For maintainers. A release is one commit and one tag:
+
+1. Merge everything that belongs to the release first; `main` must be green.
+2. Open a pull request titled `chore: release X.Y.Z` that only sets `version` in `package.json` and the heading of
+   the release in `CHANGELOG.md` (`## X.Y.Z (YYYY-MM-DD)`). Squash and merge it as the last pull request.
+3. Tag exactly that commit: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+4. The `Release` workflow builds, tests and packs the tarball. Approve its `npm` deployment; the job then stages
+   the version on npm through trusted publishing (there is no npm token).
+5. Approve the staged version on npmjs.com (package page → Staged Packages) or with `npm stage approve <stage-id>`.
+   Only then is it installable.
+6. Create the GitHub release for the tag with the CHANGELOG section.
+
 By contributing you agree that your contribution is licensed under the [MIT License](LICENSE).
