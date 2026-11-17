@@ -191,9 +191,12 @@ export class ChannelSettingsService {
   }
 }
 
-/** Loose check: something@something.tld, no spaces, commas or angle brackets (they would add recipients). */
+/**
+ * Loose check: something@something.tld, no spaces, commas or angle brackets (they would add recipients). Dots in the
+ * domain only separate labels, so the pattern runs in linear time on any input.
+ */
 export function isEmailAddress(value: string): boolean {
-  return /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/.test(value);
+  return value.length <= 254 && /^[^\s@,;<>]+@[^\s@,;<>.]+(\.[^\s@,;<>.]+)+$/.test(value);
 }
 
 /** Upper case without spaces for country code, VAT ID, IBAN and BIC (the PDF prints the IBAN grouped). */
