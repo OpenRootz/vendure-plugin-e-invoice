@@ -12,6 +12,7 @@ import { encodeEntityId, isStorableId } from './entity-ids';
 export interface UpdateChannelSettingsInput {
   enabled?: boolean;
   autoIssue?: boolean;
+  delivery?: { enabled?: boolean | null; bcc?: string | null };
   seller?: SellerSettings;
   payment?: PaymentSettings;
   layout?: LayoutSettings | LegacyLayoutSettings;
@@ -57,6 +58,8 @@ export class ChannelSettingsService {
         channelId: ctx.channelId,
         enabled: false,
         autoIssue: true,
+        deliveryEnabled: false,
+        deliveryBcc: null,
         seller: {},
         payment: {},
         layout: undefined,
@@ -73,6 +76,15 @@ export class ChannelSettingsService {
     const settings = await this.get(ctx);
     if (input.enabled !== undefined && input.enabled !== null) settings.enabled = input.enabled;
     if (input.autoIssue !== undefined && input.autoIssue !== null) settings.autoIssue = input.autoIssue;
+    if (input.delivery) {
+      const { enabled, bcc } = input.delivery;
+      if (enabled !== undefined && enabled !== null) settings.deliveryEnabled = enabled;
+      if (bcc !== undefined) {
+        const value = bcc?.trim() || null;
+        if (value && !isEmailAddress(value)) throw new UserInputError(`"${value}" is not a valid email address`);
+        settings.deliveryBcc = value;
+      }
+    }
     if (input.seller) settings.seller = normalizeSeller(compact(input.seller));
     if (input.payment) settings.payment = compact(input.payment);
     if (input.layout) {
@@ -103,14 +115,22 @@ export class ChannelSettingsService {
   }
 
   /**
-   * Seller data that is present but looks wrong (country code, VAT ID, IBAN, BIC, email). Warnings do not block
-   * issuing; they are shown in the settings, since the values end up on every invoice.
+   * Seller data that is present but looks wrong (country code, VAT ID, IBAN, BIC, email), and problems of the
+   * delivery setup while delivery is enabled. Warnings do not block issuing; they are shown in the settings.
    */
   async setupWarnings(ctx: RequestContext): Promise<SetupIssue[]> {
-    // Custom seller strategies get their data elsewhere; only the default reads the settings
-    if (!(this.options.sellerStrategy instanceof ChannelSettingsSellerStrategy)) return [];
     const settings = await this.get(ctx);
-    return checkSellerFormats(sellerFromSettings(settings.seller), settings.seller.bank);
+    // Custom seller strategies get their data elsewhere; only the default reads the settings
+    const issues: SetupIssue[] =
+      this.options.sellerStrategy instanceof ChannelSettingsSellerStrategy
+        ? checkSellerFormats(sellerFromSettings(settings.seller), settings.seller.bank)
+        : [];
+    if (settings.deliveryEnabled) {
+      for (const message of (await this.options.delivery.strategy.setupIssues?.()) ?? []) {
+        issues.push({ code: 'DELIVERY_SETUP', message: `Sending documents: ${message}`, path: 'delivery' });
+      }
+    }
+    return issues;
   }
 
   /**
@@ -169,6 +189,11 @@ export class ChannelSettingsService {
     }
     return issues;
   }
+}
+
+/** Loose check: something@something.tld, no spaces, commas or angle brackets (they would add recipients). */
+export function isEmailAddress(value: string): boolean {
+  return /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/.test(value);
 }
 
 /** Upper case without spaces for country code, VAT ID, IBAN and BIC (the PDF prints the IBAN grouped). */

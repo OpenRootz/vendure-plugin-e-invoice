@@ -44,6 +44,15 @@ export const shopApiExtensions = gql`
     "Issued invoices and credit notes"
     eInvoices: [EInvoice!]!
   }
+
+  extend type Mutation {
+    """
+    Sends the issued invoices and credit notes of an order again to the order's email address, e.g. when a download
+    link has expired. Always returns success, whether or not the order code and email address match. Rate-limited
+    per order (option delivery.requestLimit).
+    """
+    requestInvoiceDownloadLink(orderCode: String!, emailAddress: String!): Success!
+  }
 `;
 
 export const adminApiExtensions = gql`
@@ -95,6 +104,35 @@ export const adminApiExtensions = gql`
     validation: EInvoiceValidation
     "Invoices with a number: what can still be credited"
     creditable: EInvoiceCreditable
+    "Sendings of the document to the buyer, newest first"
+    deliveries: [EInvoiceDelivery!]!
+  }
+
+  enum EInvoiceDeliveryStatus {
+    "Handed to the transport, no attempt reported yet"
+    QUEUED
+    "An attempt failed; the transport tries again"
+    RETRYING
+    SENT
+    "Failed for good; send it again with sendEInvoice"
+    FAILED
+  }
+
+  type EInvoiceDelivery implements Node {
+    id: ID!
+    createdAt: DateTime!
+    updatedAt: DateTime!
+    status: EInvoiceDeliveryStatus!
+    "auto, manual or request"
+    trigger: String!
+    "Empty if the order has no email address"
+    recipient: String!
+    bcc: String
+    attempts: Int!
+    "The files were too large to attach; the email contains download links"
+    linkOnly: Boolean!
+    errorMessage: String
+    sentAt: DateTime
   }
 
   type EInvoiceCreditableLine {
@@ -388,9 +426,23 @@ export const adminApiExtensions = gql`
     termDays: Int
   }
 
+  type EInvoiceDeliverySettings {
+    "Send issued documents to the buyer automatically"
+    enabled: Boolean!
+    "Blind copy of every automatic sending"
+    bcc: String
+  }
+
+  input EInvoiceDeliverySettingsInput {
+    enabled: Boolean
+    "Empty string or null removes it"
+    bcc: String
+  }
+
   type EInvoiceChannelSettings {
     enabled: Boolean!
     autoIssue: Boolean!
+    delivery: EInvoiceDeliverySettings!
     seller: EInvoiceSellerSettings!
     payment: EInvoicePaymentSettings!
     layout: EInvoiceLayout!
@@ -399,6 +451,7 @@ export const adminApiExtensions = gql`
   input UpdateEInvoiceChannelSettingsInput {
     enabled: Boolean
     autoIssue: Boolean
+    delivery: EInvoiceDeliverySettingsInput
     "Replaces the stored seller data"
     seller: EInvoiceSellerSettingsInput
     "Replaces the stored payment settings"
@@ -417,7 +470,7 @@ export const adminApiExtensions = gql`
     eInvoiceChannelSettings: EInvoiceChannelSettings!
     "What is missing before invoices can be issued in this channel (seller data, tax categories, ...)"
     eInvoiceSetupStatus: [EInvoiceIssue!]!
-    "Seller data that looks wrong (country code, VAT ID, IBAN, BIC, email). Does not block issuing."
+    "Seller data that looks wrong (country code, VAT ID, IBAN, BIC, email) and problems of the delivery setup. Does not block issuing."
     eInvoiceSetupWarnings: [EInvoiceIssue!]!
     "Renders the invoice the order would get now, with a draft number. Nothing is saved and no number is used. Also requires ReadOrder."
     eInvoicePreview(orderId: ID!): EInvoicePreview!
@@ -449,5 +502,7 @@ export const adminApiExtensions = gql`
     "FAILED document that can never be rendered: the number stays used and the reason documents the gap."
     voidEInvoice(id: ID!, reason: String!): EInvoice!
     updateEInvoiceChannelSettings(input: UpdateEInvoiceChannelSettingsInput!): EInvoiceChannelSettings!
+    "Send an issued document to the buyer again, or to recipient. Requires UpdateEInvoice."
+    sendEInvoice(id: ID!, recipient: String): EInvoiceDelivery!
   }
 `;

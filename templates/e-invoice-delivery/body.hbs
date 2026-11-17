@@ -1,0 +1,72 @@
+{{> header title=subject }}
+
+<mj-section background-color="#fafafa">
+    <mj-column>
+        {{#if german}}
+        <mj-text color="#525252">
+            Guten Tag{{#if buyerName}} {{ buyerName }}{{/if}},
+        </mj-text>
+        <mj-text color="#525252">
+            {{#if isCreditNote}}
+            anbei erhalten Sie die Rechnungskorrektur <strong>{{ number }}</strong> vom {{ issueDate }} zu Ihrer Bestellung {{ orderCode }}
+            über {{ formatMoney totalWithTax currencyCode "de-DE" }}.
+            {{else}}
+            anbei erhalten Sie die Rechnung <strong>{{ number }}</strong> vom {{ issueDate }} zu Ihrer Bestellung {{ orderCode }}
+            über {{ formatMoney totalWithTax currencyCode "de-DE" }}.
+            {{/if}}
+        </mj-text>
+        {{#if hasXRechnung}}
+        <mj-text color="#525252">
+            Maßgeblich ist die XRechnung (XML-Datei). Die PDF-Datei dient der Lesbarkeit.
+        </mj-text>
+        {{/if}}
+        {{#if linkOnly}}
+        <mj-text color="#525252">
+            Die Dateien sind zu groß für einen Anhang. Sie können sie hier herunterladen (die Links sind begrenzt gültig):
+        </mj-text>
+        {{else}}
+        <mj-text color="#525252">Anhänge:</mj-text>
+        {{/if}}
+        {{else}}
+        <mj-text color="#525252">
+            Hello{{#if buyerName}} {{ buyerName }}{{/if}},
+        </mj-text>
+        <mj-text color="#525252">
+            {{#if isCreditNote}}
+            please find attached the credit note <strong>{{ number }}</strong> of {{ issueDate }} for your order {{ orderCode }}
+            for {{ formatMoney totalWithTax currencyCode "en-US" }}.
+            {{else}}
+            please find attached the invoice <strong>{{ number }}</strong> of {{ issueDate }} for your order {{ orderCode }}
+            for {{ formatMoney totalWithTax currencyCode "en-US" }}.
+            {{/if}}
+        </mj-text>
+        {{#if hasXRechnung}}
+        <mj-text color="#525252">
+            The XRechnung (XML file) is the authoritative document. The PDF is for reading.
+        </mj-text>
+        {{/if}}
+        {{#if linkOnly}}
+        <mj-text color="#525252">
+            The files are too large to attach. You can download them here (the links expire):
+        </mj-text>
+        {{else}}
+        <mj-text color="#525252">Attachments:</mj-text>
+        {{/if}}
+        {{/if}}
+
+        <mj-text color="#525252">
+            <ul>
+                {{#each files}}
+                <li>{{#if url}}<a href="{{{ url }}}">{{ fileName }}</a>{{else}}{{ fileName }}{{/if}}</li>
+                {{/each}}
+            </ul>
+        </mj-text>
+
+        <mj-text color="#525252">
+            {{#if german}}Mit freundlichen Grüßen{{else}}Kind regards{{/if}}<br />
+            {{ sellerName }}
+        </mj-text>
+    </mj-column>
+</mj-section>
+
+{{> footer }}

@@ -23,7 +23,7 @@ import { useEffect, useState } from 'react';
 import { errorMessage, IssueList, openPdf, UnsavedChangesGuard, UPDATE } from './common';
 import { ChannelSettings, layoutPreviewDocument, settingsDocument, updateSettingsDocument } from './graphql';
 
-const EMPTY: ChannelSettings = { enabled: false, autoIssue: true, seller: {}, payment: {}, layout: {} };
+const EMPTY: ChannelSettings = { enabled: false, autoIssue: true, delivery: { enabled: false }, seller: {}, payment: {}, layout: {} };
 
 /** Sets `value` at a dotted path of a copy of `obj`. */
 function setPath<T extends object>(obj: T, path: string, value: unknown): T {
@@ -52,6 +52,7 @@ function toInput(s: ChannelSettings) {
   return {
     enabled: s.enabled,
     autoIssue: s.autoIssue,
+    delivery: { enabled: s.delivery?.enabled ?? false, bcc: s.delivery?.bcc?.trim() || null },
     seller: {
       ...clean({
         name: seller.name,
@@ -178,7 +179,7 @@ export function SettingsPage() {
         {setupWarnings.length > 0 && (
           <PageBlock column="main" blockId="e-invoice-setup-warnings" title="Please check">
             <p className="mb-2 text-sm text-muted-foreground">
-              These values look wrong. They do not block invoices, but they are printed on every invoice.
+              These do not block invoices. Seller values that look wrong are printed on every invoice.
             </p>
             <IssueList issues={setupWarnings} />
           </PageBlock>
@@ -193,6 +194,27 @@ export function SettingsPage() {
               <Switch id="e-invoice-auto" checked={settings.autoIssue} onCheckedChange={(v: boolean) => change('autoIssue', v)} />
               <Label htmlFor="e-invoice-auto">Issue invoices automatically (e.g. when the payment is settled)</Label>
             </div>
+          </div>
+        </PageBlock>
+        <PageBlock column="side" blockId="e-invoice-delivery" title="Sending">
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Switch
+                id="e-invoice-delivery-enabled"
+                checked={settings.delivery?.enabled ?? false}
+                onCheckedChange={(v: boolean) => change('delivery.enabled', v)}
+              />
+              <Label htmlFor="e-invoice-delivery-enabled">Email issued invoices and credit notes to the buyer</Label>
+            </div>
+            <Field
+              label="BCC"
+              path="delivery.bcc"
+              hint="Optional copy of every automatic email, e.g. for your accountant or archive"
+              {...fieldProps}
+            />
+            <p className="text-xs text-muted-foreground">
+              Documents issued before sending was enabled are not sent. Needs the EmailPlugin with eInvoiceDeliveryHandler (see the README).
+            </p>
           </div>
         </PageBlock>
         <PageBlock column="main" blockId="e-invoice-seller" title="Seller">

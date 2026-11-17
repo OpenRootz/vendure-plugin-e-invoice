@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+- Email delivery: issued invoices and credit notes are sent to the buyer through the Vendure `EmailPlugin`
+  (optional peer dependency) with `eInvoiceDeliveryHandler` from `@openrootz/vendure-plugin-e-invoice/email` and the
+  template `templates/e-invoice-delivery`. Off per channel until enabled; optional BCC per channel; option `delivery`
+  (`autoSend`, `maxAttachmentBytes`, `requestLimit`, `strategy`). Every sending is an `EInvoiceDelivery` (new table
+  `e_invoice_delivery`, new channel settings columns: generate a migration) with status `queued`, `retrying`, `sent`
+  or `failed`
+- Admin API: `sendEInvoice(id, recipient)`, `EInvoice.deliveries`, `EInvoiceChannelSettings.delivery`; delivery setup
+  problems in `eInvoiceSetupWarnings`
+- Shop API: `requestInvoiceDownloadLink(orderCode, emailAddress)` sends the documents of an order again (always
+  answers success, rate-limited per order)
+- Events `EInvoiceDeliveryRequestedEvent`, `EInvoiceDeliveryFailedEvent`, `InvoiceDownloadLinkRequestedEvent`;
+  `InvoiceDeliveryStrategy` for other transports
+- Dashboard: sending settings, send dialog and send status on the order page
+- The package now has an `exports` map (`.` and `./email`); deep imports into `dist/` are no longer possible
+
 ## 0.1.0 (2026-11-17)
 
 First release.

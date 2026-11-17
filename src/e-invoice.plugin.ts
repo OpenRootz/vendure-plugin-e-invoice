@@ -4,9 +4,11 @@ import { Injector, Logger, PluginCommonModule, Type, VendurePlugin } from '@vend
 
 import { EInvoiceDownloadController } from './api/download.controller';
 import { adminApiExtensions, shopApiExtensions } from './api/schema';
-import { EInvoiceShopEntityResolver, EInvoiceShopOrderResolver } from './api/shop.resolver';
+import { EInvoiceShopDeliveryResolver, EInvoiceShopEntityResolver, EInvoiceShopOrderResolver } from './api/shop.resolver';
 import {
   EInvoiceAdminResolver,
+  EInvoiceChannelSettingsResolver,
+  EInvoiceDeliveryResolver,
   EInvoiceEntityResolver,
   EInvoiceFileResolver,
   EInvoiceLayoutResolver,
@@ -20,6 +22,7 @@ import {
   EInvoice,
   EInvoiceBlob,
   EInvoiceChannelSettings,
+  EInvoiceDelivery,
   EInvoiceFile,
   EInvoiceSequence,
 } from './entities';
@@ -27,6 +30,7 @@ import { OrderModelMapper } from './mapping/order-model.mapper';
 import { EInvoicePluginOptions, resolveOptions, ResolvedEInvoicePluginOptions } from './options';
 import { ChannelSettingsService } from './services/channel-settings.service';
 import { CreditNoteService } from './services/credit-note.service';
+import { EInvoiceDeliveryService } from './services/delivery.service';
 import { DownloadLinkService } from './services/download-link.service';
 import { NoopValidator } from './strategies/validator';
 import { InvoiceNumberService } from './services/invoice-number.service';
@@ -39,7 +43,8 @@ import { LayoutPreviewService } from './services/layout-preview.service';
  * with embedded CII XML) and XRechnung (CII or UBL), with gap-free numbering, immutable snapshots, signed download
  * links and a dashboard extension.
  *
- * Adds the entities `EInvoice`, `EInvoiceFile`, `EInvoiceSequence`, `EInvoiceChannelSettings` and `EInvoiceBlob`,
+ * Adds the entities `EInvoice`, `EInvoiceFile`, `EInvoiceSequence`, `EInvoiceChannelSettings`, `EInvoiceBlob` and
+ * `EInvoiceDelivery`,
  * custom fields on Customer, Order, TaxRate and PaymentMethod, the permissions `CreateEInvoice`, `ReadEInvoice`
  * and `UpdateEInvoice`, Admin and Shop API extensions and the download route `/e-invoice`.
  *
@@ -49,7 +54,7 @@ import { LayoutPreviewService } from './services/layout-preview.service';
  */
 @VendurePlugin({
   imports: [PluginCommonModule],
-  entities: [EInvoice, EInvoiceFile, EInvoiceSequence, EInvoiceChannelSettings, EInvoiceBlob],
+  entities: [EInvoice, EInvoiceFile, EInvoiceSequence, EInvoiceChannelSettings, EInvoiceBlob, EInvoiceDelivery],
   providers: [
     { provide: PLUGIN_INIT_OPTIONS, useFactory: () => EInvoicePlugin.options },
     OrderModelMapper,
@@ -60,15 +65,24 @@ import { LayoutPreviewService } from './services/layout-preview.service';
     InvoiceService,
     DownloadLinkService,
     LayoutPreviewService,
+    EInvoiceDeliveryService,
   ],
   controllers: [EInvoiceDownloadController],
   adminApiExtensions: {
     schema: adminApiExtensions,
-    resolvers: [EInvoiceAdminResolver, EInvoiceEntityResolver, EInvoiceFileResolver, EInvoiceOrderResolver, EInvoiceLayoutResolver],
+    resolvers: [
+      EInvoiceAdminResolver,
+      EInvoiceEntityResolver,
+      EInvoiceFileResolver,
+      EInvoiceOrderResolver,
+      EInvoiceLayoutResolver,
+      EInvoiceDeliveryResolver,
+      EInvoiceChannelSettingsResolver,
+    ],
   },
   shopApiExtensions: {
     schema: shopApiExtensions,
-    resolvers: [EInvoiceShopOrderResolver, EInvoiceShopEntityResolver, EInvoiceFileResolver],
+    resolvers: [EInvoiceShopOrderResolver, EInvoiceShopEntityResolver, EInvoiceFileResolver, EInvoiceShopDeliveryResolver],
   },
   configuration: (config) => {
     const options = EInvoicePlugin.options;
@@ -127,6 +141,7 @@ export class EInvoicePlugin implements OnApplicationBootstrap, OnApplicationShut
     for (const strategy of this.strategies()) {
       await strategy.init?.(injector);
     }
+    await injector.get(EInvoiceDeliveryService).logSetupIssues();
   }
 
   /** @internal */
@@ -138,6 +153,15 @@ export class EInvoicePlugin implements OnApplicationBootstrap, OnApplicationShut
 
   private strategies() {
     const o = EInvoicePlugin.options;
-    return [o.numberStrategy, o.sellerStrategy, o.buyerStrategy, o.formatStrategy, o.storage, o.pdfStrategy, o.validation.validator];
+    return [
+      o.numberStrategy,
+      o.sellerStrategy,
+      o.buyerStrategy,
+      o.formatStrategy,
+      o.storage,
+      o.pdfStrategy,
+      o.validation.validator,
+      o.delivery.strategy,
+    ];
   }
 }

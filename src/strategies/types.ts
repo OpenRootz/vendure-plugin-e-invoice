@@ -1,6 +1,8 @@
 import { ID, InjectableStrategy, Order, RequestContext } from '@vendure/core';
 
 import { Address, Buyer, EInvoiceFormat, EInvoiceType, IsoDate, PdfDocDefinition, PdfTemplateInput, Seller } from '../core';
+import type { EInvoiceDelivery } from '../entities/e-invoice-delivery.entity';
+import type { EInvoice } from '../entities/e-invoice.entity';
 
 /**
  * Input of the {@link InvoiceNumberStrategy}.
@@ -194,4 +196,33 @@ export interface InvoiceValidator extends InjectableStrategy {
    * validation summary and the document counts as not valid.
    */
   validate(ctx: RequestContext, input: ValidationInput): Promise<ValidationReport>;
+}
+
+/**
+ * What {@link InvoiceDeliveryStrategy.deliver} gets: the saved delivery row (status `queued`) and the issued
+ * document with its files.
+ *
+ * @category Strategies
+ */
+export interface DeliveryInput {
+  delivery: EInvoiceDelivery;
+  invoice: EInvoice;
+}
+
+/**
+ * Sends issued documents to the buyer. The plugin decides when and to whom (channel settings, option `delivery`),
+ * saves an {@link EInvoiceDelivery} row and calls `deliver`. The strategy reports the outcome of every attempt with
+ * `EInvoiceDeliveryService.recordAttempt`, now or later (e.g. from a job). If `deliver` throws, the delivery is
+ * `failed`. Default: {@link EmailPluginDeliveryStrategy}.
+ *
+ * @category Strategies
+ */
+export interface InvoiceDeliveryStrategy extends InjectableStrategy {
+  /** Hand the document to the transport. */
+  deliver(ctx: RequestContext, input: DeliveryInput): Promise<void>;
+  /**
+   * What is missing for deliveries to work (e.g. a transport that is not configured). Logged at startup and shown in
+   * the settings while delivery is enabled for a channel.
+   */
+  setupIssues?(): string[] | Promise<string[]>;
 }

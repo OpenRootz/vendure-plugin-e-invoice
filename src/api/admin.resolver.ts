@@ -15,9 +15,10 @@ import {
 
 import { eInvoicePermission } from '../constants';
 import { EInvoiceFormat, LayoutPreset, layoutPreset, SampleKind, v1Fields } from '../core';
-import { LayoutSettings } from '../entities';
+import { EInvoiceChannelSettings, EInvoiceDelivery, LayoutSettings } from '../entities';
 import { EInvoice, EInvoiceFile } from '../entities';
 import { ChannelSettingsService, UpdateChannelSettingsInput } from '../services/channel-settings.service';
+import { EInvoiceDeliveryService } from '../services/delivery.service';
 import { encodeEntityId, mapImageAssetIds } from '../services/entity-ids';
 import { DownloadLinkService, MAX_ZIP_INVOICES } from '../services/download-link.service';
 import { InvoiceService, ManualCreditNoteInput } from '../services/invoice.service';
@@ -55,6 +56,7 @@ export class EInvoiceAdminResolver {
     private settings: ChannelSettingsService,
     private links: DownloadLinkService,
     private layoutPreview: LayoutPreviewService,
+    private deliveries: EInvoiceDeliveryService,
   ) {}
 
   @Query()
@@ -189,6 +191,12 @@ export class EInvoiceAdminResolver {
 
   @Mutation()
   @Allow(eInvoicePermission.Update)
+  sendEInvoice(@Ctx() ctx: RequestContext, @Args() args: { id: ID; recipient?: string | null }) {
+    return this.deliveries.send(ctx, args.id, args.recipient);
+  }
+
+  @Mutation()
+  @Allow(eInvoicePermission.Update)
   async updateEInvoiceChannelSettings(
     @Ctx() ctx: RequestContext,
     @Args() args: { input: UpdateChannelSettingsInput & { layout?: LayoutInput | null } },
@@ -204,7 +212,13 @@ export class EInvoiceEntityResolver {
   constructor(
     private invoices: InvoiceService,
     private orderService: OrderService,
+    private deliveryService: EInvoiceDeliveryService,
   ) {}
+
+  @ResolveField()
+  deliveries(@Ctx() ctx: RequestContext, @Parent() invoice: EInvoice) {
+    return this.deliveryService.findByInvoice(ctx, invoice.id);
+  }
 
   @ResolveField()
   async order(@Ctx() ctx: RequestContext, @Parent() invoice: EInvoice) {
@@ -274,6 +288,22 @@ export class EInvoiceEntityResolver {
   validation(@Parent() invoice: EInvoice) {
     const v = invoice.validation;
     return v && { ...v, results: v.results.map((r) => ({ ...r, format: formatEnum(r.format) })) };
+  }
+}
+
+@Resolver('EInvoiceDelivery')
+export class EInvoiceDeliveryResolver {
+  @ResolveField()
+  status(@Parent() delivery: EInvoiceDelivery) {
+    return delivery.status.toUpperCase();
+  }
+}
+
+@Resolver('EInvoiceChannelSettings')
+export class EInvoiceChannelSettingsResolver {
+  @ResolveField()
+  delivery(@Parent() settings: EInvoiceChannelSettings) {
+    return { enabled: settings.deliveryEnabled ?? false, bcc: settings.deliveryBcc ?? null };
   }
 }
 

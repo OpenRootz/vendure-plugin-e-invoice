@@ -12,10 +12,13 @@ import {
   Seller,
   VatCategory,
 } from './core';
+import type { EInvoiceReason } from './entities/e-invoice.entity';
 import { DefaultBuyerDataStrategy } from './strategies/buyer-data-strategy';
+import { EmailPluginDeliveryStrategy } from './strategies/email-plugin-delivery-strategy';
 import { DefaultInvoiceFormatStrategy } from './strategies/format-strategy';
 import {
   BuyerDataStrategy,
+  InvoiceDeliveryStrategy,
   InvoiceFormatStrategy,
   InvoiceNumberStrategy,
   InvoicePdfStrategy,
@@ -126,6 +129,41 @@ export interface DownloadLinkOptions {
 }
 
 /**
+ * Sending issued documents to the buyer ({@link EInvoicePluginOptions.delivery}). Sending is enabled per channel in
+ * the e-invoice settings; it is off by default.
+ *
+ * @category Plugin
+ */
+export interface DeliveryOptions {
+  /**
+   * How documents are sent.
+   *
+   * @default new EmailPluginDeliveryStrategy() (through the Vendure EmailPlugin and `eInvoiceDeliveryHandler`)
+   */
+  strategy?: InvoiceDeliveryStrategy;
+  /**
+   * Which documents are sent automatically when they are issued. `creditNotes` takes `true` (all), `false` (none)
+   * or the reasons to send (`refund`, `cancellation`, `modification`, `reissue`, `manual`).
+   *
+   * @default { invoices: true, creditNotes: true }
+   */
+  autoSend?: { invoices?: boolean; creditNotes?: boolean | EInvoiceReason[] };
+  /**
+   * Above this total size of the files, the email contains download links (valid for `downloadLinks.guestTtl`)
+   * instead of attachments. Links outside of an Admin API request need `downloadLinks.baseUrl`.
+   *
+   * @default 5 MB (5242880)
+   */
+  maxAttachmentBytes?: number;
+  /**
+   * How often a buyer can request the documents of one order with `requestInvoiceDownloadLink`.
+   *
+   * @default { max: 3, window: '1h' }
+   */
+  requestLimit?: { max?: number; window?: Duration };
+}
+
+/**
  * Options for {@link EInvoicePlugin.init}.
  *
  * @category Plugin
@@ -178,6 +216,8 @@ export interface EInvoicePluginOptions {
   validation?: { validator: InvoiceValidator; mode: 'off' | 'report' | 'enforce' };
   /** Signed download links. All links are signed with `secret` and expire. */
   downloadLinks?: DownloadLinkOptions;
+  /** Sending issued documents to the buyer, e.g. by email. Enabled per channel in the e-invoice settings. */
+  delivery?: DeliveryOptions;
   /**
    * Make the buyer custom fields (VAT ID, buyer reference, Leitweg-ID, PO number) readable and writable in the Shop API.
    *
@@ -244,9 +284,18 @@ export interface EInvoicePluginOptions {
  *
  * @internal
  */
-export type ResolvedEInvoicePluginOptions = Required<Omit<EInvoicePluginOptions, 'downloadLinks'>> & {
+export type ResolvedEInvoicePluginOptions = Required<Omit<EInvoicePluginOptions, 'downloadLinks' | 'delivery'>> & {
   downloadLinks: { guestTtl: number; ownerTtl: number; adminTtl: number; baseUrl?: string };
+  delivery: {
+    strategy: InvoiceDeliveryStrategy;
+    autoSend: { invoices: boolean; creditNotes: EInvoiceReason[] };
+    maxAttachmentBytes: number;
+    /** `window` in seconds */
+    requestLimit: { max: number; window: number };
+  };
 };
+
+const CREDIT_NOTE_REASONS: EInvoiceReason[] = ['refund', 'cancellation', 'modification', 'reissue', 'manual'];
 
 /** @internal */
 export function resolveOptions(options: EInvoicePluginOptions): ResolvedEInvoicePluginOptions {
@@ -254,6 +303,16 @@ export function resolveOptions(options: EInvoicePluginOptions): ResolvedEInvoice
     throw new Error('EInvoicePlugin: `secret` is required and must be at least 32 characters long');
   }
   const links = options.downloadLinks ?? {};
+  const delivery = options.delivery ?? {};
+  const creditNotes = delivery.autoSend?.creditNotes ?? true;
+  const maxAttachmentBytes = delivery.maxAttachmentBytes ?? 5 * 1024 * 1024;
+  if (!Number.isInteger(maxAttachmentBytes) || maxAttachmentBytes < 0) {
+    throw new Error(`EInvoicePlugin: \`delivery.maxAttachmentBytes\` must be a non-negative integer, got ${maxAttachmentBytes}`);
+  }
+  const requestMax = delivery.requestLimit?.max ?? 3;
+  if (!Number.isInteger(requestMax) || requestMax < 0) {
+    throw new Error(`EInvoicePlugin: \`delivery.requestLimit.max\` must be a non-negative integer, got ${requestMax}`);
+  }
   if (links.baseUrl !== undefined && !/^https?:\/\/[^/?#\s]+(\/[^?#\s]*)?$/.test(links.baseUrl)) {
     throw new Error(`EInvoicePlugin: \`downloadLinks.baseUrl\` must be an http(s) URL without query or fragment, got ${links.baseUrl}`);
   }
@@ -279,6 +338,15 @@ export function resolveOptions(options: EInvoicePluginOptions): ResolvedEInvoice
       ownerTtl: parseDuration(links.ownerTtl ?? '1h', 'downloadLinks.ownerTtl'),
       adminTtl: parseDuration(links.adminTtl ?? '15m', 'downloadLinks.adminTtl'),
       baseUrl: links.baseUrl === undefined ? undefined : trimTrailingSlashes(links.baseUrl),
+    },
+    delivery: {
+      strategy: delivery.strategy ?? new EmailPluginDeliveryStrategy(),
+      autoSend: {
+        invoices: delivery.autoSend?.invoices ?? true,
+        creditNotes: creditNotes === true ? CREDIT_NOTE_REASONS : creditNotes === false ? [] : creditNotes,
+      },
+      maxAttachmentBytes,
+      requestLimit: { max: requestMax, window: parseDuration(delivery.requestLimit?.window ?? '1h', 'delivery.requestLimit.window') },
     },
   };
 }

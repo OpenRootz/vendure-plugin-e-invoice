@@ -38,6 +38,9 @@ This plugin does that inside Vendure, without a browser, a Java runtime or an ex
   VAT ID or totals that do not match the order are explained in plain words, with a link to where they are fixed.
 - **Visual layout editor**: drag and resize blocks on the real PDF, presets for DIN 5008 Form A/B, layout checks
   for the content §14 UStG requires. Or bring your own [pdfmake](https://pdfmake.github.io/docs/) template.
+- **Email delivery**: issued invoices and credit notes go to the buyer through the Vendure `EmailPlugin`, with the
+  files attached, an optional BCC for the archive, a send status per document, manual resending, and a Shop API
+  mutation for buyers whose download link has expired.
 - **Signed downloads**: time-limited links for admins, customers and guests, ZIP export, SHA-256 checked files.
 - **Storage**: database (default) or a local directory; anything else (object storage, WebDAV, a DMS) through a
   small custom strategy. No cloud vendor SDK is bundled.
@@ -57,6 +60,7 @@ This plugin does that inside Vendure, without a browser, a Java runtime or an ex
 - [How it works](#how-it-works)
 - [Options](#options)
 - [Customisation](#customisation)
+- [Email delivery](#email-delivery)
 - [APIs and downloads](#apis-and-downloads)
 - [Dashboard](#dashboard)
 - [Runtime validation](#runtime-validation)
@@ -106,7 +110,8 @@ The plugin adds entities and custom fields, so generate and run a migration
 npx vendure migrate
 ```
 
-Tables: `e_invoice`, `e_invoice_file`, `e_invoice_sequence`, `e_invoice_channel_settings`, `e_invoice_blob`. The
+Tables: `e_invoice`, `e_invoice_file`, `e_invoice_sequence`, `e_invoice_channel_settings`, `e_invoice_blob`,
+`e_invoice_delivery`. The
 `e_invoice_` prefix lets the plugin run next to other invoice plugins.
 
 ## Setup checklist
@@ -128,6 +133,7 @@ E-invoicing is **off** per channel until you enable it.
    length or check digits, a malformed BIC or email address. Warnings do not block invoices, but the values are
    printed on every invoice. Saving the settings upper-cases country code, VAT ID, IBAN and BIC and removes spaces.
 5. Optionally design the PDF in the layout editor (Settings → Invoice layout): logo, colors, texts, block positions.
+6. Optionally send the documents to the buyer by email ([Email delivery](#email-delivery)).
 
 ## How it works
 
@@ -186,6 +192,12 @@ EInvoicePlugin.init({
   timeZone: 'Europe/Berlin', // issue and due dates; default: server time zone
   exposeBuyerFieldsInShop: true,
   downloadLinks: { guestTtl: '7d', ownerTtl: '1h', adminTtl: '15m', baseUrl: 'https://shop.example.com' },
+  delivery: {
+    strategy: new EmailPluginDeliveryStrategy(),
+    autoSend: { invoices: true, creditNotes: true }, // or e.g. creditNotes: ['refund', 'cancellation']
+    maxAttachmentBytes: 5 * 1024 * 1024, // above: download links instead of attachments
+    requestLimit: { max: 3, window: '1h' }, // requestInvoiceDownloadLink per order
+  },
   validation: { validator: new KositHttpValidator({ url: 'http://kosit:8080/' }), mode: 'report' },
   storage: new DatabaseInvoiceStorageStrategy(),
   numberStrategy: new DefaultInvoiceNumberStrategy({ invoicePrefix: 'RE', creditNotePrefix: 'GS' }),
@@ -279,6 +291,64 @@ Roboto (Latin, Greek, Cyrillic). A layout can pick one of them as `theme.font`.
 | `mapping.creditAllocation` | proportional to the remaining gross per VAT rate | split of amount-only refunds                                              |
 | `mapping.transformModel`   | —                                                | last-mile change of the invoice model before the checks                   |
 
+## Email delivery
+
+Issued invoices and credit notes can be sent to the buyer automatically, through the Vendure
+[EmailPlugin](https://docs.vendure.io/reference/core-plugins/email-plugin/). Sending is **off** per channel until you
+enable it (Settings → E-Invoices → Sending, or `updateEInvoiceChannelSettings(input: { delivery: { enabled: true } })`);
+documents issued before that are not sent.
+
+1. Install the EmailPlugin (an optional peer dependency) and add the handler:
+
+   ```ts
+   import { defaultEmailHandlers, EmailPlugin, FileBasedTemplateLoader } from '@vendure/email-plugin';
+   import { eInvoiceDeliveryHandler } from '@openrootz/vendure-plugin-e-invoice/email';
+
+   EmailPlugin.init({
+     handlers: [...defaultEmailHandlers, eInvoiceDeliveryHandler],
+     templateLoader: new FileBasedTemplateLoader(path.join(__dirname, '../static/email/templates')),
+     globalTemplateVars: { fromAddress: '"Demo Shop" <noreply@example.com>' },
+     transport: { type: 'smtp' /* ... */ },
+   });
+   ```
+
+2. Copy the template into your template directory, next to Vendure's templates (it uses their `header` and
+   `footer` partials), and adjust it if you like:
+
+   ```bash
+   cp -r node_modules/@openrootz/vendure-plugin-e-invoice/templates/e-invoice-delivery static/email/templates/
+   ```
+
+3. Set `downloadLinks.baseUrl`: emails are built in jobs, outside a request, and need it for download links.
+
+At startup, and in `eInvoiceSetupWarnings` while sending is enabled, the plugin reports a missing handler, a missing
+template or a missing EmailPlugin. Without the handler deliveries stay `queued`.
+
+**What is sent**: every stored file of the document: the ZUGFeRD PDF, and for buyers with a Leitweg-ID also the
+XRechnung XML (the email says that the XML is the authoritative document). The text is German or English, by the
+language of the document. If the files are larger than `delivery.maxAttachmentBytes` together (default 5 MB), the
+email contains download links (valid for `downloadLinks.guestTtl`) instead.
+
+**Recipient**: the buyer's electronic address on the document (scheme `EM`), else the email address of the order's
+customer. An optional BCC address per channel (e.g. your accountant or an archive address) gets a copy of every
+automatic email, but not of manual or requested ones.
+
+**Status**: every sending is an `EInvoiceDelivery` (`EInvoice.deliveries`, shown on the order page): `queued`,
+`retrying` (an attempt failed; the EmailPlugin retries 5 times), `sent` or `failed`, with the last error. A failed
+delivery publishes `EInvoiceDeliveryFailedEvent`; send it again from the order page or with
+`sendEInvoice(id, recipient)`. The status depends on the EmailPlugin's job retries: with a custom `JobQueueStrategy`
+that ignores `retries`, or the EmailPlugin's `testing` transport (one attempt, no queue), a failed email can stay at
+`retrying`.
+
+**Expired links**: the Shop API mutation `requestInvoiceDownloadLink(orderCode, emailAddress)` sends the issued
+documents of an order again to the order's email address, if both match. It always answers `success`, so it cannot
+be used to find out order codes or addresses, and it is limited per order (`delivery.requestLimit`, default 3 per
+hour). It publishes `InvoiceDownloadLinkRequestedEvent`.
+
+Which documents are sent automatically is set with `delivery.autoSend`. To send through something else (your own
+SMTP client, a mail API, Peppol), implement an `InvoiceDeliveryStrategy` and set it as `delivery.strategy`; it needs
+no EmailPlugin. `EInvoiceDeliveryService.prepareEmail` builds subject, template variables and attachments for it.
+
 ## APIs and downloads
 
 ### Admin API
@@ -302,8 +372,8 @@ so `createEInvoiceGuestLink` needs `CreateEInvoice`; links that expire after min
 | `eInvoiceLayoutPreview(input)`                              | renders an unsaved layout (and unsaved seller data) with sample data or an order; returns the PDF, page count, where every block ended up and the layout issues |
 | `eInvoiceDefaultLayout(preset)`                             | a layout document to start from: default, DIN 5008 Form A/B, minimal                                                                                            |
 | `eInvoiceSetupStatus`                                       | what is missing in the channel                                                                                                                                  |
-| `eInvoiceSetupWarnings`                                     | seller data that looks wrong (country code, VAT ID, IBAN, BIC, email); does not block issuing                                                                   |
-| `eInvoiceChannelSettings` / `updateEInvoiceChannelSettings` | seller, payment terms, layout (rejected if the layout checks report errors)                                                                                     |
+| `eInvoiceSetupWarnings`                                     | seller data that looks wrong (country code, VAT ID, IBAN, BIC, email) and problems of the delivery setup; does not block issuing                                |
+| `eInvoiceChannelSettings` / `updateEInvoiceChannelSettings` | seller, payment terms, layout (rejected if the layout checks report errors), sending (`delivery: { enabled, bcc }`)                                             |
 | `createEInvoice(orderId)`                                   | manual invoice; returns a BLOCKED invoice with `issues` if data is missing                                                                                      |
 | `retryEInvoice(id)`                                         | BLOCKED: map the order again; FAILED: render again                                                                                                              |
 | `voidEInvoice(id, reason)`                                  | FAILED → VOID                                                                                                                                                   |
@@ -311,6 +381,7 @@ so `createEInvoiceGuestLink` needs `CreateEInvoice`; links that expire after min
 | `cancelAndReissueEInvoice(invoiceId)`                       | full credit note + new invoice for the current order                                                                                                            |
 | `createEInvoiceGuestLink(invoiceId, format)`                | download link valid for `guestTtl` (7 days); needs `CreateEInvoice`                                                                                             |
 | `createEInvoiceZipLink(ids)`                                | ZIP of several issued documents                                                                                                                                 |
+| `sendEInvoice(id, recipient)`                               | email an issued document (again), to `recipient` or the buyer; needs `UpdateEInvoice`                                                                           |
 
 ### Shop API
 
@@ -341,6 +412,9 @@ Only issued documents are visible, and only through Vendure's own ownership chec
 `orderByCode`). Note that Vendure's default `orderByCode` access strategy lets anyone with the order code read a
 guest order for 2 hours after it was placed.
 
+`requestInvoiceDownloadLink(orderCode, emailAddress)` emails the issued documents of an order again to the order's
+address ([Email delivery](#email-delivery)).
+
 ### Download links
 
 Every download goes through `GET /e-invoice/download/:id?f=<format>&exp=…&sig=…` (or `/e-invoice/zip?ids=…`). The
@@ -358,7 +432,8 @@ The download route is public (the signature is the authorization). It answers wi
 no-store`, `Content-Disposition: attachment`, `X-Content-Type-Options: nosniff`, a sandboxing
 `Content-Security-Policy` and `Referrer-Policy: no-referrer`.
 
-To put a link into your order confirmation email, listen for `EInvoiceIssuedEvent` and use `DownloadLinkService`:
+To send the documents themselves, use [Email delivery](#email-delivery). To put a link into another email (e.g. your
+order confirmation), listen for `EInvoiceIssuedEvent` and use `DownloadLinkService`:
 
 ```ts
 const url = injector.get(DownloadLinkService).fileLink(event.ctx, event.invoice, 'zugferd', 'guest');
@@ -371,17 +446,20 @@ logs and browser histories. Keep `guestTtl` as short as your emails allow and ke
 ### Events
 
 `EInvoiceIssuedEvent` (files are ready), `EInvoiceBlockedEvent` (checks failed, with `issues`),
-`EInvoiceFailedEvent` (rendering or validation failed).
+`EInvoiceFailedEvent` (rendering or validation failed), `EInvoiceDeliveryRequestedEvent` (a document should be
+sent; the EmailPlugin handler listens for it), `EInvoiceDeliveryFailedEvent` (sending failed for good),
+`InvoiceDownloadLinkRequestedEvent` (a buyer asked for their documents and order code and email address matched).
 
 ## Dashboard
 
 The plugin ships an extension for the React dashboard (`@vendure/dashboard`), compiled by your dashboard build:
 
 - **Order detail page**: invoices and credit notes with status, downloads and actions (create, credit note,
-  cancel & reissue, retry, void, copy guest link, PDF preview). Blocked invoices list their problems with links to
-  where they are fixed.
+  cancel & reissue, retry, void, copy guest link, send by email, PDF preview). Blocked invoices list their problems
+  with links to where they are fixed; sent documents show their send status.
 - **Sales → E-Invoices**: list with filters and ZIP download of the selection.
-- **Settings → E-Invoices**: seller data, bank account, payment terms, setup status, PDF preview with sample data.
+- **Settings → E-Invoices**: seller data, bank account, payment terms, sending by email, setup status, PDF preview
+  with sample data.
 - **Settings → Invoice layout**: the visual layout editor. The real PDF (sample invoices or the latest order) is
   rendered by the server and shown with pdf.js; drag and resize blocks on the page (snapping to a 1 mm grid, the
   margins and other blocks; Shift = free; arrow keys move by 0.5 mm, with Shift by 5 mm), show or hide them, anchor
@@ -509,13 +587,15 @@ This plugin helps you create compliant e-invoices; it is not tax or legal advice
   storage and backups must keep them as well.
 - **GDPR**: the invoice snapshot contains personal data (name, address, email). Deleting a customer in Vendure does
   not delete their invoices, because the retention obligation takes precedence. Mention this in your privacy policy.
+  With email delivery, the EmailPlugin's job data contains the email with the invoice files until Vendure removes
+  finished jobs (e.g. with the `cleanJobsTask` scheduled task); the `EInvoiceDelivery` rows keep the recipient.
 - Each file's SHA-256 is stored and checked on download, which makes changes detectable. The plugin does not claim
   GoBD certification; your overall process (archiving, access control, procedure documentation) determines that.
 
 ## Limitations
 
 - One seller per channel (no split invoices for multi-vendor orders yet).
-- Downloads only: sending invoices by email or via Peppol is not included yet.
+- Sending via Peppol is not included yet; email delivery needs the Vendure EmailPlugin or a custom strategy.
 - Outgoing invoices only; incoming e-invoices are not parsed.
 - A goodwill refund that happens before an invoice is cancelled and reissued is not reflected in the new invoice.
 - The dashboard extension targets the React dashboard; there is none for the Angular Admin UI.
@@ -526,7 +606,6 @@ This plugin helps you create compliant e-invoices; it is not tax or legal advice
 Ideas for future versions, roughly in this order; feedback on what matters to you is welcome in the
 [issues](https://github.com/OpenRootz/vendure-plugin-e-invoice/issues):
 
-- Email delivery (invoice attached via the `EmailPlugin`) and new download links for expired guest links
 - Custom block types for the layout editor
 - Accounting export hook
 - Peppol sending
