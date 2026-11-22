@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 (2026-11-22)
 
 - Email delivery: issued invoices and credit notes are sent to the buyer through the Vendure `EmailPlugin`
   (optional peer dependency) with `eInvoiceDeliveryHandler` from `@openrootz/vendure-plugin-e-invoice/email` and the
